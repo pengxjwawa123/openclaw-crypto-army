@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # OpenClaw Control Center - Main management interface
   openclaw-control:
     build: .
     container_name: openclaw-control-center
@@ -9,19 +10,61 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - openclaw-data:/app/data
+      - ~/.openclaw:/root/.openclaw:rw
     environment:
       - NODE_ENV=production
       - PORT=3000
       - DATA_DIR=/app/data
       - MNEMONIC=${MNEMONIC}
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-http://openclaw-gateway:18789}
     restart: unless-stopped
     networks:
-      - openclaw
+      - openclaw-network
+    depends_on:
+      - openclaw-gateway
+
+  # OpenClaw Gateway - Official OpenClaw service
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:2026.2.6-3
+    container_name: openclaw-gateway
+    ports:
+      - "18789:18789"
+    volumes:
+      - ~/.openclaw:/home/node/.openclaw:rw
+      - openclaw-workspace:/home/node/workspace:rw
+    environment:
+      - NODE_ENV=production
+      - OPENCLAW_HOME=/home/node/.openclaw
+      - OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES:-}
+      - OPENCLAW_EXTRA_MOUNTS=${OPENCLAW_EXTRA_MOUNTS:-}
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+  # OpenClaw CLI - For channel configuration
+  openclaw-cli:
+    image: ghcr.io/openclaw/openclaw:2026.2.6-3
+    container_name: openclaw-cli
+    volumes:
+      - ~/.openclaw:/home/node/.openclaw:rw
+      - openclaw-workspace:/home/node/workspace:rw
+    environment:
+      - OPENCLAW_HOME=/home/node/.openclaw
+    networks:
+      - openclaw-network
+    profiles:
+      - cli
+    entrypoint: ["/bin/sh"]
+    stdin_open: true
+    tty: true
 
 volumes:
   openclaw-data:
     driver: local
+  openclaw-workspace:
+    driver: local
 
 networks:
-  openclaw:
-    external: true
+  openclaw-network:
+    driver: bridge
+    name: openclaw-network

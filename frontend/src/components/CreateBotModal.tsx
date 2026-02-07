@@ -11,9 +11,11 @@ interface CreateBotModalProps {
   onCreate: (data: { name: string; image: string; env: Record<string, string> }) => void;
 }
 
+// Default OpenClaw image - specific version for stability
+const DEFAULT_BOT_IMAGE = 'ghcr.io/openclaw/openclaw:2026.2.6-3';
+
 export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProps) {
   const [name, setName] = useState('');
-  const [image, setImage] = useState('');
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
     { key: '', value: '' },
   ]);
@@ -28,11 +30,11 @@ export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProp
       }
     });
 
-    onCreate({ name, image, env });
+    // Always use the default OpenClaw image
+    onCreate({ name, image: DEFAULT_BOT_IMAGE, env });
 
     // Reset form
     setName('');
-    setImage('');
     setEnvVars([{ key: '', value: '' }]);
     onClose();
   };
@@ -63,24 +65,13 @@ export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProp
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="my-bot"
+              placeholder="my-trading-bot"
               required
               fullWidth
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-accent text-text-secondary mb-2 uppercase tracking-wider">
-              Docker Image
-            </label>
-            <Input
-              type="text"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="openclaw/bot:latest"
-              required
-              fullWidth
-            />
+            <p className="text-xs text-text-secondary mt-1 font-mono">
+              Image: {DEFAULT_BOT_IMAGE}
+            </p>
           </div>
 
           <div>

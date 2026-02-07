@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const LABEL_PREFIX = 'openclaw.bot';
 const NETWORK_NAME = 'openclaw-network';
+const DEFAULT_BOT_IMAGE = 'ghcr.io/openclaw/openclaw:2026.2.6-3';
 
 export class DockerManager extends EventEmitter {
   private docker: Docker;
@@ -44,17 +45,28 @@ export class DockerManager extends EventEmitter {
     try {
       this.emit('bot:creating', { id: config.id, name: config.name });
 
+      // Use default OpenClaw bot image if not specified
+      const image = config.image || DEFAULT_BOT_IMAGE;
+
       // Pull image if not exists
-      await this.pullImageIfNeeded(config.image);
+      await this.pullImageIfNeeded(image);
+
+      // Merge environment variables with bot-specific configs
+      const envVars = {
+        BOT_ID: config.id,
+        BOT_NAME: config.name,
+        ...config.env,
+      };
 
       const containerConfig: Docker.ContainerCreateOptions = {
         name: `openclaw-bot-${config.id}`,
-        Image: config.image,
-        Env: Object.entries(config.env || {}).map(([key, value]) => `${key}=${value}`),
+        Image: image,
+        Env: Object.entries(envVars).map(([key, value]) => `${key}=${value}`),
         Labels: {
           [`${LABEL_PREFIX}.id`]: config.id,
           [`${LABEL_PREFIX}.name`]: config.name,
           [`${LABEL_PREFIX}.managed`]: 'true',
+          [`${LABEL_PREFIX}.image`]: image,
         },
         HostConfig: {
           NetworkMode: NETWORK_NAME,

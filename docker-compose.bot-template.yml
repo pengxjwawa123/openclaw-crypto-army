@@ -1,0 +1,47 @@
+# Template for OpenClaw Trading Bots
+# This file serves as a reference for bot containers created dynamically
+# The actual bot containers are created via the API using the openclaw-bot image
+
+version: '3.8'
+
+services:
+  # Example bot configuration (created dynamically by the control center)
+  openclaw-bot-example:
+    image: ghcr.io/openclaw/openclaw:2026.2.6-3
+    container_name: openclaw-bot-example
+    environment:
+      # These are automatically injected by the control center
+      - BOT_ID=example-bot-id
+      - PRIVATE_KEY=0x... # Generated automatically from mnemonic
+      - WALLET_ADDRESS=0x... # Derived from private key
+
+      # Network configurations (optional)
+      - ETH_RPC_URL=https://mainnet.infura.io/v3/YOUR_KEY
+      - ETH_CHAIN_ID=1
+      - BSC_RPC_URL=https://bsc-dataseed.binance.org
+      - BSC_CHAIN_ID=56
+      - POLYGON_RPC_URL=https://polygon-rpc.com
+      - POLYGON_CHAIN_ID=137
+
+      # Trading parameters (optional)
+      - SLIPPAGE=0.5
+      - GAS_LIMIT=500000
+
+      # OpenClaw gateway connection
+      - OPENCLAW_GATEWAY_URL=http://openclaw-gateway:18789
+    volumes:
+      - openclaw-bot-example-data:/home/openclaw/.openclaw:rw
+      - openclaw-bot-example-workspace:/home/openclaw/workspace:rw
+    networks:
+      - openclaw-network
+    restart: unless-stopped
+    depends_on:
+      - openclaw-gateway
+
+volumes:
+  openclaw-bot-example-data:
+  openclaw-bot-example-workspace:
+
+networks:
+  openclaw-network:
+    external: true
