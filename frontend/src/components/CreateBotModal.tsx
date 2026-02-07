@@ -131,10 +131,16 @@ export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProp
         </div>
 
         <div className="flex gap-3 mt-8">
-          <Button type="submit" variant="primary" size="md" fullWidth>
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            className="shadow-glow-md hover:shadow-glow-lg font-bold border-2 border-primary hover:border-primary-light"
+          >
             Create Bot
           </Button>
-          <Button type="button" onClick={onClose} variant="secondary" size="md">
+          <Button type="button" onClick={onClose} variant="secondary" size="lg">
             Cancel
           </Button>
         </div>

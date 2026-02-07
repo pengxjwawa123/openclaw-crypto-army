@@ -81,7 +81,13 @@ export function Header({
             </div>
 
             {/* Create Button */}
-            <Button onClick={onCreateBot} variant="primary" size="md" leftIcon={<Plus size={20} />}>
+            <Button
+              onClick={onCreateBot}
+              variant="primary"
+              size="lg"
+              leftIcon={<Plus size={22} />}
+              className="shadow-glow-md hover:shadow-glow-lg font-bold border-2 border-primary hover:border-primary-light"
+            >
               Create Bot
             </Button>
           </div>

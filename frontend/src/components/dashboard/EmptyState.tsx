@@ -20,7 +20,13 @@ export function EmptyState({ onCreateBot }: EmptyStateProps) {
         Get started by creating your first bot. Deploy and manage Docker containers with ease.
       </p>
 
-      <Button onClick={onCreateBot} variant="primary" size="lg" leftIcon={<Plus size={20} />}>
+      <Button
+        onClick={onCreateBot}
+        variant="primary"
+        size="lg"
+        leftIcon={<Plus size={22} />}
+        className="shadow-glow-md hover:shadow-glow-lg font-bold text-lg px-8 py-4 border-2 border-primary hover:border-primary-light"
+      >
         Create Your First Bot
       </Button>
     </div>
