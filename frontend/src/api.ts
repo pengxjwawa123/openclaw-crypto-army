@@ -1,8 +1,15 @@
-import { Bot, CreateBotRequest } from './types';
+import { Bot, CreateBotRequest, MasterWallet } from './types';
 
 const API_BASE = '/api';
 
 export const api = {
+  // Wallet APIs
+  async getMasterWallet(): Promise<MasterWallet> {
+    const res = await fetch(`${API_BASE}/wallets/master`);
+    if (!res.ok) throw new Error('Failed to fetch master wallet');
+    return res.json();
+  },
+
   async getBots(): Promise<Bot[]> {
     const res = await fetch(`${API_BASE}/bots`);
     if (!res.ok) throw new Error('Failed to fetch bots');

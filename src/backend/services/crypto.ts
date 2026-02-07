@@ -2,7 +2,7 @@ import { Wallet, HDNodeWallet } from 'ethers';
 
 export class CryptoService {
   private mnemonic: string;
-  private nextIndex: number = 0;
+  private nextIndex: number = 1; // Start from 1, reserve 0 for master wallet
 
   constructor(mnemonic?: string) {
     this.mnemonic = mnemonic || process.env.MNEMONIC || '';
@@ -17,6 +17,14 @@ export class CryptoService {
     } catch (error) {
       throw new Error('Invalid mnemonic phrase');
     }
+  }
+
+  /**
+   * Gets the master wallet (index 0)
+   * This is the main wallet that funds can be sent to
+   */
+  getMasterWallet(): { privateKey: string; address: string; derivationPath: string } {
+    return this.deriveWallet(0);
   }
 
   /**
