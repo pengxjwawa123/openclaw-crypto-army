@@ -1,5 +1,11 @@
-import { Play, Square, RotateCw, Trash2, FileText, Activity } from 'lucide-react';
+import { Play, Square, RotateCw, Trash2, FileText } from 'lucide-react';
 import { Bot } from '../types';
+import { Card } from './ui/Card';
+import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
+import { StatusDot } from './ui/StatusDot';
+import { IconButton } from './ui/IconButton';
+import { formatUptime, formatPercentage } from '../lib/formatters';
 
 interface BotCardProps {
   bot: Bot;
@@ -15,115 +21,126 @@ export function BotCard({ bot, onStart, onStop, onRestart, onDelete, onViewLogs 
   const isRunning = status.state === 'running';
   const isStopped = status.state === 'stopped';
 
-  const getStateColor = () => {
+  const getStatusDotState = (): 'running' | 'stopped' | 'error' | 'pending' | 'paused' => {
     switch (status.state) {
       case 'running':
-        return 'bg-green-500';
+        return 'running';
       case 'stopped':
-        return 'bg-gray-500';
+        return 'stopped';
       case 'error':
-        return 'bg-red-500';
+        return 'error';
+      case 'paused':
+        return 'paused';
       case 'creating':
       case 'removing':
-        return 'bg-yellow-500';
+        return 'pending';
       default:
-        return 'bg-gray-500';
+        return 'stopped';
     }
   };
 
-  const formatUptime = (ms?: number) => {
-    if (!ms) return '0s';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ${hours % 24}h`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
+  const getBadgeVariant = (): 'success' | 'warning' | 'error' | 'default' => {
+    switch (status.state) {
+      case 'running':
+        return 'success';
+      case 'error':
+        return 'error';
+      case 'creating':
+      case 'removing':
+        return 'warning';
+      default:
+        return 'default';
+    }
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 hover:border-gray-600 transition-colors">
+    <Card variant="interactive" padding="md" className="h-full flex flex-col">
+      {/* Header */}
       <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <div className={`w-3 h-3 rounded-full ${getStateColor()}`} />
-            <h3 className="text-xl font-semibold text-white">{bot.name}</h3>
+            <StatusDot status={getStatusDotState()} size="md" />
+            <h3 className="text-xl font-bold font-mono text-text-primary truncate">
+              {bot.name}
+            </h3>
           </div>
-          <p className="text-sm text-gray-400 font-mono">{bot.image}</p>
+          <p className="text-sm text-text-muted font-mono truncate">{bot.image}</p>
         </div>
+        <Badge variant={getBadgeVariant()} size="sm" withDot>
+          {status.state}
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-        <div>
-          <p className="text-gray-400">Status</p>
-          <p className="text-white font-medium capitalize">{status.state}</p>
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 gap-3 mb-4 flex-1">
+        <div className="bg-bg-hover/50 rounded-lg p-3 border border-bg-surface">
+          <p className="text-xs font-accent text-text-muted uppercase tracking-wider mb-1">
+            Uptime
+          </p>
+          <p className="text-lg font-mono font-bold text-text-primary">
+            {formatUptime(status.uptime ? status.uptime / 1000 : 0)}
+          </p>
         </div>
-        <div>
-          <p className="text-gray-400">Uptime</p>
-          <p className="text-white font-medium">{formatUptime(status.uptime)}</p>
-        </div>
-        {isRunning && (
-          <>
-            <div>
-              <p className="text-gray-400">CPU</p>
-              <p className="text-white font-medium">{status.cpu?.toFixed(1)}%</p>
-            </div>
-            <div>
-              <p className="text-gray-400">Memory</p>
-              <p className="text-white font-medium">{status.memory?.toFixed(1)}%</p>
-            </div>
-          </>
+
+        {isRunning && status.cpu !== undefined ? (
+          <div className="bg-bg-hover/50 rounded-lg p-3 border border-bg-surface">
+            <p className="text-xs font-accent text-text-muted uppercase tracking-wider mb-1">CPU</p>
+            <p className="text-lg font-mono font-bold text-primary">
+              {formatPercentage(status.cpu)}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-bg-hover/50 rounded-lg p-3 border border-bg-surface opacity-50">
+            <p className="text-xs font-accent text-text-muted uppercase tracking-wider mb-1">CPU</p>
+            <p className="text-lg font-mono font-bold text-text-muted">—</p>
+          </div>
         )}
+
+        {isRunning && status.memory !== undefined ? (
+          <div className="bg-bg-hover/50 rounded-lg p-3 border border-bg-surface col-span-2">
+            <p className="text-xs font-accent text-text-muted uppercase tracking-wider mb-1">
+              Memory
+            </p>
+            <p className="text-lg font-mono font-bold text-info">
+              {formatPercentage(status.memory)}
+            </p>
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex gap-2">
+      {/* Action Buttons */}
+      <div className="flex gap-2 flex-wrap">
         {isStopped && (
-          <button
-            onClick={onStart}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors text-sm font-medium"
-          >
-            <Play size={16} />
+          <Button onClick={onStart} variant="success" size="sm" leftIcon={<Play size={16} />}>
             Start
-          </button>
+          </Button>
         )}
 
         {isRunning && (
           <>
-            <button
-              onClick={onStop}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors text-sm font-medium"
-            >
-              <Square size={16} />
+            <Button onClick={onStop} variant="danger" size="sm" leftIcon={<Square size={16} />}>
               Stop
-            </button>
-            <button
-              onClick={onRestart}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium"
-            >
-              <RotateCw size={16} />
+            </Button>
+            <Button onClick={onRestart} variant="primary" size="sm" leftIcon={<RotateCw size={16} />}>
               Restart
-            </button>
+            </Button>
           </>
         )}
 
-        <button
-          onClick={onViewLogs}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors text-sm font-medium"
-        >
-          <FileText size={16} />
+        <Button onClick={onViewLogs} variant="secondary" size="sm" leftIcon={<FileText size={16} />}>
           Logs
-        </button>
+        </Button>
 
-        <button
+        <IconButton
           onClick={onDelete}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-red-600 text-white rounded-md transition-colors text-sm font-medium ml-auto"
+          variant="danger"
+          size="sm"
+          className="ml-auto"
+          aria-label="Delete bot"
         >
           <Trash2 size={16} />
-        </button>
+        </IconButton>
       </div>
-    </div>
+    </Card>
   );
 }

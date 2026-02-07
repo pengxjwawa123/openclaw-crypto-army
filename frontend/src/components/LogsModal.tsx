@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { api } from '../api';
+import { Modal } from './ui/Modal';
+import { IconButton } from './ui/IconButton';
 
 interface LogsModalProps {
   isOpen: boolean;
@@ -31,42 +33,38 @@ export function LogsModal({ isOpen, botId, botName, onClose }: LogsModalProps) {
     }
   }, [isOpen, botId]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-white">Logs: {botName}</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={fetchLogs}
-              disabled={loading}
-              className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors disabled:opacity-50"
-            >
-              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <X size={24} />
-            </button>
-          </div>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Logs: ${botName}`}
+      size="lg"
+    >
+      <div className="flex justify-end mb-4">
+        <IconButton
+          onClick={fetchLogs}
+          disabled={loading}
+          variant="default"
+          size="md"
+          aria-label="Refresh logs"
+        >
+          <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+        </IconButton>
+      </div>
 
-        <div className="flex-1 bg-gray-900 rounded-md p-4 overflow-y-auto font-mono text-sm">
-          {logs.length === 0 ? (
-            <p className="text-gray-500">No logs available</p>
-          ) : (
-            logs.map((log, index) => (
-              <div key={index} className="text-gray-300 whitespace-pre-wrap break-all">
+      <div className="bg-bg-base/80 rounded-lg p-4 max-h-[60vh] overflow-y-auto font-mono text-sm border border-primary/10">
+        {logs.length === 0 ? (
+          <p className="text-text-muted">No logs available</p>
+        ) : (
+          <div className="space-y-1">
+            {logs.map((log, index) => (
+              <div key={index} className="text-text-secondary whitespace-pre-wrap break-all hover:text-text-primary transition-colors">
                 {log}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

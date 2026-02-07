@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Plus, Activity } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
 import { Bot } from './types';
 import { api } from './api';
 import { useWebSocket } from './useWebSocket';
 import { BotCard } from './components/BotCard';
 import { CreateBotModal } from './components/CreateBotModal';
 import { LogsModal } from './components/LogsModal';
+import { DashboardLayout } from './components/dashboard/DashboardLayout';
+import { Header } from './components/dashboard/Header';
+import { EmptyState } from './components/dashboard/EmptyState';
+import { Skeleton } from './components/ui/Skeleton';
 
 export default function App() {
   const [bots, setBots] = useState<Bot[]>([]);
@@ -45,6 +48,15 @@ export default function App() {
       );
     }
   }, [botStatuses]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const total = bots.length;
+    const running = bots.filter((b) => b.status.state === 'running').length;
+    const stopped = bots.filter((b) => b.status.state === 'stopped').length;
+    const error = bots.filter((b) => b.status.state === 'error').length;
+    return { total, running, stopped, error };
+  }, [bots]);
 
   const handleCreateBot = async (data: { name: string; image: string; env: Record<string, string> }) => {
     try {
@@ -103,57 +115,53 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
+      <DashboardLayout
+        header={
+          <Header
+            connected={false}
+            totalBots={0}
+            runningBots={0}
+            stoppedBots={0}
+            errorBots={0}
+            onCreateBot={() => {}}
+          />
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-4">
+              <Skeleton className="h-64 w-full" />
+            </div>
+          ))}
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <header className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Activity className="text-blue-500" size={32} />
-              <h1 className="text-3xl font-bold text-white">OpenClaw Control Center</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-sm text-gray-400">
-                  {connected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              <button
-                onClick={() => setCreateModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <Plus size={20} />
-                Create Bot
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {bots.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-400 text-lg mb-4">No bots created yet</p>
-            <button
-              onClick={() => setCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+    <DashboardLayout
+      header={
+        <Header
+          connected={connected}
+          totalBots={stats.total}
+          runningBots={stats.running}
+          stoppedBots={stats.stopped}
+          errorBots={stats.error}
+          onCreateBot={() => setCreateModalOpen(true)}
+        />
+      }
+    >
+      {bots.length === 0 ? (
+        <EmptyState onCreateBot={() => setCreateModalOpen(true)} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {bots.map((bot, index) => (
+            <div
+              key={bot.id}
+              className="animate-slide-up"
+              style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
             >
-              <Plus size={20} />
-              Create Your First Bot
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bots.map((bot) => (
               <BotCard
-                key={bot.id}
                 bot={bot}
                 onStart={() => handleStartBot(bot.id)}
                 onStop={() => handleStopBot(bot.id)}
@@ -161,10 +169,10 @@ export default function App() {
                 onDelete={() => handleDeleteBot(bot.id, bot.name)}
                 onViewLogs={() => handleViewLogs(bot.id, bot.name)}
               />
-            ))}
-          </div>
-        )}
-      </main>
+            </div>
+          ))}
+        </div>
+      )}
 
       <CreateBotModal
         isOpen={createModalOpen}
@@ -178,6 +186,6 @@ export default function App() {
         botName={logsModal.botName}
         onClose={() => setLogsModal({ open: false, botId: '', botName: '' })}
       />
-    </div>
+    </DashboardLayout>
   );
 }
