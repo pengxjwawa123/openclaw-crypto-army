@@ -7,6 +7,11 @@ export interface Bot {
     source: string;
     target: string;
   }>;
+  wallet?: {
+    address: string;
+    derivationPath: string;
+    index: number;
+  };
   createdAt: number;
   updatedAt: number;
   status: BotStatus;

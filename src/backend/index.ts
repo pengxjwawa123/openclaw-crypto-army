@@ -1,11 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { createServer } from 'http';
 import { DockerManager } from './services/docker';
 import { WebSocketService } from './services/websocket';
+import { CryptoService } from './services/crypto';
 import { createBotRouter } from './routes/bots';
-import { initDatabase } from './services/database';
+import { initDatabase, getAllBotConfigs } from './services/database';
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -22,6 +24,19 @@ async function main() {
   console.log('Initializing database...');
   await initDatabase();
 
+  console.log('Initializing crypto service...');
+  const cryptoService = new CryptoService();
+
+  // Load existing bot configs to set the next wallet index
+  const existingConfigs = await getAllBotConfigs();
+  const maxIndex = existingConfigs.reduce((max, config) => {
+    return config.wallet?.index !== undefined && config.wallet.index > max
+      ? config.wallet.index
+      : max;
+  }, -1);
+  cryptoService.setNextIndex(maxIndex + 1);
+  console.log(`Crypto service initialized. Next wallet index: ${maxIndex + 1}`);
+
   console.log('Initializing Docker manager...');
   const dockerManager = new DockerManager();
   await dockerManager.initialize();
@@ -30,7 +45,7 @@ async function main() {
   const wsService = new WebSocketService(server, dockerManager);
 
   // API Routes
-  app.use('/api/bots', createBotRouter(dockerManager));
+  app.use('/api/bots', createBotRouter(dockerManager, cryptoService));
 
   // Health check
   app.get('/api/health', (req, res) => {

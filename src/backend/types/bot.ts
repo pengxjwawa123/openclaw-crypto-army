@@ -7,6 +7,12 @@ export interface BotConfig {
     source: string;
     target: string;
   }>;
+  wallet?: {
+    address: string;
+    privateKey: string;
+    derivationPath: string;
+    index: number;
+  };
   createdAt: number;
   updatedAt: number;
 }

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { DockerManager } from '../services/docker';
+import { CryptoService } from '../services/crypto';
 import { BotCreateRequest, BotUpdateRequest, BotConfig } from '../types/bot';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -9,7 +10,7 @@ import {
   deleteBotConfig,
 } from '../services/database';
 
-export function createBotRouter(dockerManager: DockerManager): Router {
+export function createBotRouter(dockerManager: DockerManager, cryptoService: CryptoService): Router {
   const router = Router();
 
   // List all bots
@@ -20,8 +21,17 @@ export function createBotRouter(dockerManager: DockerManager): Router {
 
       const bots = configs.map(config => {
         const status = statuses.find(s => s.id === config.id);
-        return {
+        // Remove private key from response
+        const safeConfig = {
           ...config,
+          wallet: config.wallet ? {
+            address: config.wallet.address,
+            derivationPath: config.wallet.derivationPath,
+            index: config.wallet.index,
+          } : undefined,
+        };
+        return {
+          ...safeConfig,
           status: status || { id: config.id, state: 'stopped' },
         };
       });
@@ -44,8 +54,18 @@ export function createBotRouter(dockerManager: DockerManager): Router {
 
       const status = await dockerManager.getBotStatus(id);
 
-      res.json({
+      // Remove private key from response
+      const safeConfig = {
         ...config,
+        wallet: config.wallet ? {
+          address: config.wallet.address,
+          derivationPath: config.wallet.derivationPath,
+          index: config.wallet.index,
+        } : undefined,
+      };
+
+      res.json({
+        ...safeConfig,
         status: status || { id, state: 'stopped' },
       });
     } catch (error: any) {
@@ -62,12 +82,26 @@ export function createBotRouter(dockerManager: DockerManager): Router {
         return res.status(400).json({ error: 'Name and image are required' });
       }
 
+      // Generate a unique wallet for this bot
+      const wallet = cryptoService.generateWallet();
+
       const config: BotConfig = {
         id: uuidv4(),
         name: body.name,
         image: body.image,
-        env: body.env || {},
+        env: {
+          ...body.env,
+          // Automatically inject the private key as an environment variable
+          PRIVATE_KEY: wallet.privateKey,
+          WALLET_ADDRESS: wallet.address,
+        },
         volumes: body.volumes || [],
+        wallet: {
+          address: wallet.address,
+          privateKey: wallet.privateKey,
+          derivationPath: wallet.derivationPath,
+          index: cryptoService.getNextIndex() - 1,
+        },
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -75,8 +109,18 @@ export function createBotRouter(dockerManager: DockerManager): Router {
       await saveBotConfig(config);
       const containerId = await dockerManager.createBot(config);
 
-      res.status(201).json({
+      // Don't send the private key in the response for security
+      const responseConfig = {
         ...config,
+        wallet: config.wallet ? {
+          address: config.wallet.address,
+          derivationPath: config.wallet.derivationPath,
+          index: config.wallet.index,
+        } : undefined,
+      };
+
+      res.status(201).json({
+        ...responseConfig,
         containerId,
       });
     } catch (error: any) {

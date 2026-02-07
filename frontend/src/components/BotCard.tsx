@@ -1,4 +1,5 @@
-import { Play, Square, RotateCw, Trash2, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { Play, Square, RotateCw, Trash2, FileText, Copy, Check } from 'lucide-react';
 import { Bot } from '../types';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -20,6 +21,15 @@ export function BotCard({ bot, onStart, onStop, onRestart, onDelete, onViewLogs 
   const { status } = bot;
   const isRunning = status.state === 'running';
   const isStopped = status.state === 'stopped';
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = () => {
+    if (bot.wallet?.address) {
+      navigator.clipboard.writeText(bot.wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const getStatusDotState = (): 'running' | 'stopped' | 'error' | 'pending' | 'paused' => {
     switch (status.state) {
@@ -64,7 +74,25 @@ export function BotCard({ bot, onStart, onStop, onRestart, onDelete, onViewLogs 
               {bot.name}
             </h3>
           </div>
-          <p className="text-sm text-text-muted font-mono truncate">{bot.image}</p>
+          <p className="text-sm text-text-muted font-mono truncate mb-1">{bot.image}</p>
+          {bot.wallet?.address && (
+            <div className="flex items-center gap-2 group">
+              <p className="text-xs text-primary font-mono truncate">
+                {bot.wallet.address.slice(0, 6)}...{bot.wallet.address.slice(-4)}
+              </p>
+              <button
+                onClick={copyAddress}
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Copy address"
+              >
+                {copied ? (
+                  <Check size={14} className="text-success" />
+                ) : (
+                  <Copy size={14} className="text-text-muted hover:text-primary" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
         <Badge variant={getBadgeVariant()} size="sm" withDot>
           {status.state}
