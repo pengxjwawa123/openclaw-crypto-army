@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  openclaw-control:
+    build: .
+    container_name: openclaw-control-center
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - openclaw-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/app/data
+    restart: unless-stopped
+    networks:
+      - openclaw
+
+volumes:
+  openclaw-data:
+    driver: local
+
+networks:
+  openclaw:
+    external: true
