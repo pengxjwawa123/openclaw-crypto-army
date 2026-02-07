@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
-import { Wallet, RefreshCw, Copy, Check } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Wallet, RefreshCw, Copy, Check, ChevronDown } from 'lucide-react';
 import { api } from '../../api';
 import { MasterWallet as MasterWalletType } from '../../types';
 import { IconButton } from '../ui/IconButton';
+import { cn } from '../../lib/cn';
 
 export function MasterWallet() {
   const [wallet, setWallet] = useState<MasterWalletType | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchWallet = async () => {
     try {
@@ -30,6 +33,22 @@ export function MasterWallet() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
   const copyAddress = () => {
     if (wallet) {
       navigator.clipboard.writeText(wallet.address);
@@ -40,8 +59,8 @@ export function MasterWallet() {
 
   if (loading) {
     return (
-      <div className="px-4 py-2 bg-bg-surface/50 rounded-lg border border-bg-hover backdrop-blur-sm animate-pulse">
-        <div className="h-12 w-48 bg-bg-hover rounded" />
+      <div className="px-3 py-1.5 bg-bg-surface/30 rounded-md animate-pulse">
+        <div className="h-8 w-32 bg-bg-hover rounded" />
       </div>
     );
   }
@@ -54,63 +73,102 @@ export function MasterWallet() {
   }, 0);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-bg-surface/50 rounded-lg border border-bg-hover backdrop-blur-sm">
-      <Wallet className="text-primary" size={24} />
-
-      <div className="flex flex-col min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-accent text-text-muted uppercase tracking-wider">
-            Master Wallet
-          </span>
-          <IconButton
-            onClick={fetchWallet}
-            variant="ghost"
-            size="xs"
-            aria-label="Refresh balance"
-            className={refreshing ? 'animate-spin' : ''}
-          >
-            <RefreshCw size={12} />
-          </IconButton>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-mono text-text-primary truncate max-w-[120px]">
-            {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
-          </span>
-          <IconButton
-            onClick={copyAddress}
-            variant="ghost"
-            size="xs"
-            aria-label="Copy address"
-          >
-            {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
-          </IconButton>
-        </div>
-      </div>
-
-      <div className="w-px h-10 bg-bg-hover" />
-
-      <div className="flex flex-col">
-        <span className="text-xs font-accent text-text-muted uppercase tracking-wider">
-          Balance
-        </span>
+    <div className="relative" ref={dropdownRef}>
+      {/* Trigger Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface/30 rounded-md hover:bg-bg-surface/50 transition-colors"
+      >
+        <Wallet className="text-primary" size={16} />
         <div className="flex items-baseline gap-1">
-          <span className="text-lg font-mono font-bold text-primary">
+          <span className="text-sm font-mono font-bold text-primary">
             {totalBalance.toFixed(4)}
           </span>
           <span className="text-xs text-text-muted">ETH</span>
         </div>
+        <ChevronDown
+          size={14}
+          className={cn(
+            'text-text-muted transition-transform',
+            isOpen && 'rotate-180'
+          )}
+        />
+      </button>
 
-        {Object.keys(wallet.balances).length > 1 && (
-          <div className="flex gap-2 mt-1">
-            {Object.entries(wallet.balances).map(([network, { formatted }]) => (
-              <span key={network} className="text-xs text-text-muted font-mono">
-                {network.toUpperCase()}: {parseFloat(formatted).toFixed(4)}
+      {/* Dropdown Panel */}
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 w-80 bg-bg-elevated border border-bg-surface rounded-lg shadow-xl z-50 p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-bg-surface">
+            <div className="flex items-center gap-2">
+              <Wallet className="text-primary" size={20} />
+              <span className="text-sm font-accent text-text-secondary uppercase tracking-wider">
+                Master Wallet
               </span>
-            ))}
+            </div>
+            <IconButton
+              onClick={fetchWallet}
+              variant="ghost"
+              size="sm"
+              aria-label="Refresh balance"
+              className={refreshing ? 'animate-spin' : ''}
+            >
+              <RefreshCw size={14} />
+            </IconButton>
           </div>
-        )}
-      </div>
+
+          {/* Address */}
+          <div className="mb-3">
+            <span className="text-xs text-text-muted uppercase tracking-wider">Address</span>
+            <div className="flex items-center gap-2 mt-1 p-2 bg-bg-surface/50 rounded">
+              <span className="text-sm font-mono text-text-primary flex-1 truncate">
+                {wallet.address}
+              </span>
+              <IconButton
+                onClick={copyAddress}
+                variant="ghost"
+                size="sm"
+                aria-label="Copy address"
+              >
+                {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+              </IconButton>
+            </div>
+          </div>
+
+          {/* Total Balance */}
+          <div className="mb-3">
+            <span className="text-xs text-text-muted uppercase tracking-wider">Total Balance</span>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-2xl font-mono font-bold text-primary">
+                {totalBalance.toFixed(4)}
+              </span>
+              <span className="text-sm text-text-muted">ETH</span>
+            </div>
+          </div>
+
+          {/* Network Breakdown */}
+          {Object.keys(wallet.balances).length > 0 && (
+            <div>
+              <span className="text-xs text-text-muted uppercase tracking-wider">Networks</span>
+              <div className="space-y-2 mt-2">
+                {Object.entries(wallet.balances).map(([network, { formatted }]) => (
+                  <div
+                    key={network}
+                    className="flex items-center justify-between p-2 bg-bg-surface/30 rounded"
+                  >
+                    <span className="text-xs font-accent text-text-secondary uppercase">
+                      {network.replace('_', ' ')}
+                    </span>
+                    <span className="text-sm font-mono font-semibold text-text-primary">
+                      {parseFloat(formatted).toFixed(4)} ETH
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

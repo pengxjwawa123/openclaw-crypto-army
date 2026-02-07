@@ -25,7 +25,7 @@ Mnemonic (from .env)
 - **Reserved** - Never used for bot operations
 
 ### Features
-- ✅ Displays balance from Ethereum, BSC, and Polygon
+- ✅ Displays balance from Ethereum, BSC, and Base Sepolia
 - ✅ Shows address with copy-to-clipboard
 - ✅ Auto-refreshes every 30 seconds
 - ✅ Manual refresh button
@@ -51,7 +51,7 @@ GET /api/wallets/master
       "balance": "500000000000000000",
       "formatted": "0.5000"
     },
-    "polygon": {
+    "base_sepolia": {
       "balance": "250000000000000000",
       "formatted": "0.2500"
     }
@@ -169,8 +169,8 @@ ETH_RPC_URL=https://mainnet.infura.io/v3/YOUR_KEY
 # BSC
 BSC_RPC_URL=https://bsc-dataseed.binance.org
 
-# Polygon
-POLYGON_RPC_URL=https://polygon-rpc.com
+# Base Sepolia
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 ```
 
 **Already configured in `.env.example`**

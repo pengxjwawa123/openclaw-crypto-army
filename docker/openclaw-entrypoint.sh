@@ -28,9 +28,9 @@ if [ -n "$PRIVATE_KEY" ]; then
       "rpcUrl": "${BSC_RPC_URL:-https://bsc-dataseed.binance.org}",
       "chainId": ${BSC_CHAIN_ID:-56}
     },
-    "polygon": {
-      "rpcUrl": "${POLYGON_RPC_URL:-https://polygon-rpc.com}",
-      "chainId": ${POLYGON_CHAIN_ID:-137}
+    "base_sepolia": {
+      "rpcUrl": "${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}",
+      "chainId": ${BASE_SEPOLIA_CHAIN_ID:-84532}
     }
   },
   "trading": {

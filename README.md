@@ -40,7 +40,7 @@ Click **"Create Bot"** and fill in:
 - 🐳 **Docker Integration** - Uses official OpenClaw image from GitHub Container Registry
 - 📊 **Real-time Monitoring** - CPU, memory, uptime, and logs
 - 🔑 **Secure Key Management** - Private keys auto-injected, never exposed in API
-- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon, and more
+- 🌐 **Multi-chain Support** - Ethereum, BSC, Base Sepolia, and more
 
 ## Architecture
 

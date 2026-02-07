@@ -41,17 +41,17 @@ export function createWalletRouter(cryptoService: CryptoService): Router {
         }
       }
 
-      // Polygon
-      if (process.env.POLYGON_RPC_URL) {
+      // Base Sepolia
+      if (process.env.BASE_SEPOLIA_RPC_URL) {
         try {
-          const provider = new JsonRpcProvider(process.env.POLYGON_RPC_URL);
+          const provider = new JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
           const balance = await provider.getBalance(masterWallet.address);
-          balances.polygon = {
+          balances.base_sepolia = {
             balance: balance.toString(),
             formatted: (Number(balance) / 1e18).toFixed(4),
           };
         } catch (error) {
-          console.error('Failed to fetch Polygon balance:', error);
+          console.error('Failed to fetch Base Sepolia balance:', error);
         }
       }
 
