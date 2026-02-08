@@ -4,18 +4,18 @@ A powerful control center for managing multiple OpenClaw trading bots with autom
 
 ## 🚀 Quick Start
 
-### 1. Run Setup Script
-
-```bash
-./docker-setup.sh
-```
-
-### 2. Configure Mnemonic
+### 1. Configure Mnemonic
 
 Edit `.env` and set your 12-word mnemonic:
 
 ```env
 MNEMONIC=word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12
+```
+
+### 2. Run Setup Script
+
+```bash
+./startup.sh
 ```
 
 ### 3. Open Control Center

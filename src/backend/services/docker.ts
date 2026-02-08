@@ -58,6 +58,9 @@ export class DockerManager extends EventEmitter {
         ...config.env,
       };
 
+      // Generate a unique port for this bot's gateway (starting from 18800)
+      const gatewayPort = 18800 + (config.wallet?.index || 0);
+
       const containerConfig: Docker.ContainerCreateOptions = {
         name: `openclaw-bot-${config.id}`,
         Image: image,
@@ -67,11 +70,19 @@ export class DockerManager extends EventEmitter {
           [`${LABEL_PREFIX}.name`]: config.name,
           [`${LABEL_PREFIX}.managed`]: 'true',
           [`${LABEL_PREFIX}.image`]: image,
+          [`${LABEL_PREFIX}.gateway_port`]: gatewayPort.toString(),
+        },
+        Cmd: ['node', 'dist/index.js', 'gateway', '--port', '18789', '--allow-unconfigured'],
+        ExposedPorts: {
+          '18789/tcp': {}
         },
         HostConfig: {
           NetworkMode: NETWORK_NAME,
           RestartPolicy: { Name: 'unless-stopped' },
           Binds: config.volumes?.map(v => `${v.source}:${v.target}`) || [],
+          PortBindings: {
+            '18789/tcp': [{ HostPort: gatewayPort.toString() }]
+          }
         },
       };
 
@@ -242,6 +253,20 @@ export class DockerManager extends EventEmitter {
 
       if (containers.length === 0) return null;
       return this.docker.getContainer(containers[0].Id);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async getBotGatewayPort(botId: string): Promise<number | null> {
+    try {
+      const container = await this.getContainerByBotId(botId);
+      if (!container) return null;
+
+      const info = await container.inspect();
+      const gatewayPortLabel = info.Config.Labels[`${LABEL_PREFIX}.gateway_port`];
+
+      return gatewayPortLabel ? parseInt(gatewayPortLabel) : null;
     } catch (error) {
       return null;
     }

@@ -94,7 +94,7 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
         // OpenClaw workflow directory for persistent workflow data
         {
           source: join(homeDir, '.openclaw', 'workflow'),
-          target: '/root/.openclaw/workflow'
+          target: '/home/node/.openclaw/workflow'
         },
         // Bot-specific data directory
         {
@@ -326,6 +326,31 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
       });
     } catch (error: any) {
       console.error('Failed to fetch bot balance:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get bot gateway connection info
+  router.get('/:id/gateway', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const port = await dockerManager.getBotGatewayPort(id);
+
+      if (!port) {
+        return res.status(404).json({ error: 'Bot gateway not found' });
+      }
+
+      const gatewayUrl = `ws://localhost:${port}`;
+      const httpUrl = `http://localhost:${port}`;
+
+      res.json({
+        port,
+        gatewayUrl,
+        httpUrl,
+        channelEnabled: true,
+      });
+    } catch (error: any) {
+      console.error('Failed to get bot gateway:', error);
       res.status(500).json({ error: error.message });
     }
   });

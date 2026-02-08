@@ -47,8 +47,37 @@ else\n\
 fi\n\
 ' > /usr/local/bin/cast-auto && chmod +x /usr/local/bin/cast-auto
 
+# Create OpenClaw directories for node user and set permissions
+RUN mkdir -p /home/node/.openclaw/cron /home/node/.openclaw/workflow && \
+    chown -R node:node /home/node/.openclaw && \
+    chmod -R 755 /home/node/.openclaw
+
+# Create default OpenClaw config for gateway mode
+# Gateway will be accessible via HTTP/WebSocket API
+RUN echo '{\n\
+  "gateway": {\n\
+    "port": 18789\n\
+  },\n\
+  "agents": {\n\
+    "defaults": {\n\
+      "workspace": "/home/node/.openclaw/workspace"\n\
+    },\n\
+    "list": [\n\
+      {\n\
+        "id": "main",\n\
+        "workspace": "/home/node/.openclaw/workspace"\n\
+      }\n\
+    ]\n\
+  }\n\
+}' > /home/node/.openclaw/openclaw.json && \
+    chown node:node /home/node/.openclaw/openclaw.json && \
+    chmod 644 /home/node/.openclaw/openclaw.json
+
 # Switch back to node user (OpenClaw default user)
 USER node
+
+# Set HOME environment variable for node user
+ENV HOME=/home/node
 
 # Set working directory
 WORKDIR /app
