@@ -2,11 +2,27 @@ import { JSONFilePreset } from 'lowdb/node';
 import { BotConfig } from '../types/bot';
 import path from 'path';
 
-interface Database {
-  bots: BotConfig[];
+export interface Transaction {
+  id: string;
+  hash: string;
+  from: string;
+  to: string;
+  amount: string;
+  botId: string;
+  botName: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  timestamp: number;
+  blockNumber?: number;
+  gasUsed?: string;
+  error?: string;
 }
 
-const defaultData: Database = { bots: [] };
+interface Database {
+  bots: BotConfig[];
+  transactions: Transaction[];
+}
+
+const defaultData: Database = { bots: [], transactions: [] };
 
 let db: Awaited<ReturnType<typeof JSONFilePreset<Database>>> | null = null;
 
@@ -15,6 +31,13 @@ export async function initDatabase() {
   const dbPath = path.join(dataDir, 'db.json');
 
   db = await JSONFilePreset<Database>(dbPath, defaultData);
+
+  // Migration: Add transactions array if it doesn't exist
+  if (!db.data.transactions) {
+    db.data.transactions = [];
+    await db.write();
+  }
+
   return db;
 }
 
@@ -59,4 +82,37 @@ export async function deleteBotConfig(id: string): Promise<boolean> {
   }
 
   return false;
+}
+
+export async function saveTransaction(transaction: Transaction): Promise<void> {
+  const database = getDatabase();
+  const index = database.data.transactions.findIndex(t => t.id === transaction.id);
+
+  if (index >= 0) {
+    database.data.transactions[index] = transaction;
+  } else {
+    database.data.transactions.push(transaction);
+  }
+
+  await database.write();
+}
+
+export async function getTransaction(id: string): Promise<Transaction | undefined> {
+  const database = getDatabase();
+  return database.data.transactions.find(t => t.id === id);
+}
+
+export async function getTransactionByHash(hash: string): Promise<Transaction | undefined> {
+  const database = getDatabase();
+  return database.data.transactions.find(t => t.hash === hash);
+}
+
+export async function getBotTransactions(botId: string): Promise<Transaction[]> {
+  const database = getDatabase();
+  return database.data.transactions.filter(t => t.botId === botId).sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export async function getAllTransactions(): Promise<Transaction[]> {
+  const database = getDatabase();
+  return database.data.transactions.sort((a, b) => b.timestamp - a.timestamp);
 }

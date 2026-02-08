@@ -1,16 +1,21 @@
 import { useEffect, useState, useRef } from 'react';
-import { Wallet, RefreshCw, Copy, Check, ChevronDown } from 'lucide-react';
+import { Wallet, RefreshCw, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../api';
 import { MasterWallet as MasterWalletType } from '../../types';
 import { IconButton } from '../ui/IconButton';
 import { cn } from '../../lib/cn';
 
-export function MasterWallet() {
+interface MasterWalletProps {
+  variant?: 'dropdown' | 'inline';
+}
+
+export function MasterWallet({ variant = 'dropdown' }: MasterWalletProps = {}) {
   const [wallet, setWallet] = useState<MasterWalletType | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchWallet = async () => {
@@ -75,6 +80,116 @@ export function MasterWallet() {
       }, 0)
     : 0;
 
+  // Inline variant for sidebar
+  if (variant === 'inline') {
+    return (
+      <div className="space-y-3">
+        {/* Header with Balance - Clickable to toggle */}
+        <div
+          className="flex items-center justify-between cursor-pointer hover:bg-bg-surface/30 -mx-2 px-2 py-1 rounded-lg transition-colors"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-2 flex-1">
+            <Wallet className="text-primary" size={18} />
+            <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
+              Master Wallet
+            </span>
+            {!isExpanded && (
+              <span className="text-sm font-mono font-bold text-primary ml-auto">
+                {(totalBalance || 0).toFixed(4)} ETH
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <IconButton
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchWallet();
+              }}
+              variant="ghost"
+              size="sm"
+              aria-label="Refresh balance"
+              className={refreshing ? 'animate-spin' : ''}
+            >
+              <RefreshCw size={14} />
+            </IconButton>
+            {isExpanded ? (
+              <ChevronUp size={16} className="text-text-muted" />
+            ) : (
+              <ChevronDown size={16} className="text-text-muted" />
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Content */}
+        {isExpanded && (
+          <>
+            {/* ENS Name (if available) */}
+            {wallet.ensName && (
+              <div className="p-2 bg-primary/10 border border-primary/20 rounded-lg">
+                <div className="text-xs text-text-muted mb-1">ENS Name</div>
+                <div className="text-sm font-semibold text-primary truncate">
+                  {wallet.ensName}
+                </div>
+              </div>
+            )}
+
+            {/* Balance Display */}
+            <div className="p-3 bg-bg-surface/30 border border-bg-surface rounded-lg">
+              <div className="text-xs text-text-muted mb-1">Total Balance</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-mono font-bold text-primary">
+                  {(totalBalance || 0).toFixed(4)}
+                </span>
+                <span className="text-xs text-text-muted">ETH</span>
+              </div>
+            </div>
+
+            {/* Address with Copy */}
+            <div className="flex items-center gap-2 p-2 bg-bg-surface/50 rounded-lg border border-bg-surface">
+              <div className="font-mono text-xs text-text-primary truncate flex-1">
+                {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+              </div>
+              <IconButton
+                onClick={copyAddress}
+                variant="ghost"
+                size="sm"
+                aria-label="Copy address"
+                className="flex-shrink-0"
+              >
+                {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+              </IconButton>
+            </div>
+
+            {/* Network Breakdown (optional) */}
+            {wallet.balances && Object.keys(wallet.balances).length > 1 && (
+              <div className="space-y-1">
+                <div className="text-xs text-text-muted">Networks</div>
+                {Object.entries(wallet.balances).map(([network, { formatted }]) => {
+                  const balance = parseFloat(formatted);
+                  return (
+                    <div
+                      key={network}
+                      className="flex items-center justify-between text-xs p-1.5 bg-bg-surface/20 rounded"
+                    >
+                      <span className="font-accent text-text-secondary uppercase">
+                        {network.replace('_', ' ')}
+                      </span>
+                      <span className="font-mono text-text-primary">
+                        {(isNaN(balance) ? 0 : balance).toFixed(4)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Dropdown variant (original)
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}

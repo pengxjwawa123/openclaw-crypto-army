@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   Wallet,
@@ -14,12 +14,23 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Copy,
+  Check,
+  Send,
+  DollarSign,
+  Globe,
+  ArrowDownToLine,
+  RefreshCw,
 } from 'lucide-react';
-import { Bot } from '../../types';
+import { Bot, MasterWallet } from '../../types';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../ui/IconButton';
 import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
+import { Input } from '../ui/Input';
 import { formatPercentage } from '../../lib/formatters';
+import { api } from '../../api';
+import { JsonRpcProvider, formatEther } from 'ethers';
 
 interface ContainerDetailPanelProps {
   bot: Bot | null;
@@ -58,6 +69,185 @@ export function ContainerDetailPanel({
   onViewLogs,
 }: ContainerDetailPanelProps) {
   const [tasks] = useState<ProcessingTask[]>(mockTasks);
+  const [copied, setCopied] = useState(false);
+  const [subdomainModalOpen, setSubdomainModalOpen] = useState(false);
+  const [subdomainName, setSubdomainName] = useState('');
+  const [sendEthModalOpen, setSendEthModalOpen] = useState(false);
+  const [sendAmount, setSendAmount] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState('');
+  const [fundModalOpen, setFundModalOpen] = useState(false);
+  const [fundAmount, setFundAmount] = useState('');
+  const [masterWallet, setMasterWallet] = useState<MasterWallet | null>(null);
+  const [loadingMasterWallet, setLoadingMasterWallet] = useState(false);
+  const [containerBalance, setContainerBalance] = useState<string>('0.0000');
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [sendingTransaction, setSendingTransaction] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+  // Fetch container balance
+  const fetchContainerBalance = async () => {
+    if (!bot?.wallet?.address) return;
+
+    try {
+      setLoadingBalance(true);
+      // Use Ethereum Sepolia RPC
+      const provider = new JsonRpcProvider('https://1rpc.io/sepolia');
+      const balance = await provider.getBalance(bot.wallet.address);
+      const balanceInEth = formatEther(balance);
+      setContainerBalance(parseFloat(balanceInEth).toFixed(4));
+    } catch (error) {
+      console.error('Failed to fetch container balance:', error);
+      setContainerBalance('0.0000');
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
+
+  // Fetch transaction history
+  const fetchTransactions = async () => {
+    if (!bot?.id) return;
+
+    try {
+      setLoadingTransactions(true);
+      const response = await fetch(`http://localhost:3000/api/transactions/bot/${bot.id}`);
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      setTransactions([]);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  // Fetch master wallet on mount
+  useEffect(() => {
+    const fetchMasterWallet = async () => {
+      try {
+        setLoadingMasterWallet(true);
+        const data = await api.getMasterWallet();
+        setMasterWallet(data);
+      } catch (error) {
+        console.error('Failed to fetch master wallet:', error);
+      } finally {
+        setLoadingMasterWallet(false);
+      }
+    };
+    fetchMasterWallet();
+  }, []);
+
+  // Fetch container balance when bot changes
+  useEffect(() => {
+    fetchContainerBalance();
+  }, [bot?.wallet?.address]);
+
+  // Fetch transactions when bot changes
+  useEffect(() => {
+    fetchTransactions();
+  }, [bot?.id]);
+
+  // Mock ENS name (in real app, this would come from the bot object)
+  const mockEnsName = bot?.wallet?.address === '0xbc4f13c499BBB6B047Cab2Ef72D98f21b3d96C56'
+    ? 'container1.openclawcrypto.eth'
+    : null;
+
+
+  // Calculate mock gas fee
+  const mockGasFee = '0.0021';
+  const totalAmount = sendAmount ? (parseFloat(sendAmount) + parseFloat(mockGasFee)).toFixed(4) : '0.0000';
+
+  // Get master wallet total balance
+  const masterWalletBalance = masterWallet?.balances
+    ? Object.values(masterWallet.balances).reduce((sum, { formatted }) => {
+        const value = parseFloat(formatted);
+        return sum + (isNaN(value) ? 0 : value);
+      }, 0)
+    : 0;
+
+  const handleCopyAddress = () => {
+    if (bot?.wallet?.address) {
+      navigator.clipboard.writeText(bot.wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCreateSubdomain = () => {
+    // Mock subdomain creation
+    console.log('Creating subdomain:', subdomainName);
+    setSubdomainModalOpen(false);
+    setSubdomainName('');
+  };
+
+  const handleSendEth = () => {
+    // Mock ETH send
+    console.log('Sending ETH:', {
+      from: bot?.wallet?.address,
+      to: recipientAddress,
+      amount: sendAmount,
+      gasFee: mockGasFee,
+      total: totalAmount,
+    });
+    setSendEthModalOpen(false);
+    setSendAmount('');
+    setRecipientAddress('');
+  };
+
+  const handleFundFromMaster = async () => {
+    if (!bot?.wallet?.address || !masterWallet?.address || !fundAmount) return;
+
+    try {
+      setSendingTransaction(true);
+      setTransactionError(null);
+      setTransactionHash(null);
+
+      const response = await fetch('http://localhost:3000/api/transactions/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: bot.wallet.address,
+          amount: fundAmount,
+          botId: bot.id,
+          botName: bot.name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send transaction');
+      }
+
+      setTransactionHash(data.hash);
+
+      // Refresh container balance and transactions after a short delay
+      setTimeout(() => {
+        fetchContainerBalance();
+        fetchTransactions();
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Transaction failed:', error);
+      setTransactionError(error.message || 'Failed to send transaction');
+    } finally {
+      setSendingTransaction(false);
+    }
+  };
+
+  const isValidAddress = (address: string) => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  };
+
+  const canSend = sendAmount &&
+                  parseFloat(sendAmount) > 0 &&
+                  parseFloat(sendAmount) <= parseFloat(containerBalance) &&
+                  recipientAddress &&
+                  isValidAddress(recipientAddress);
 
   if (!bot) {
     return null;
@@ -89,23 +279,176 @@ export function ContainerDetailPanel({
       <div className="flex-1 overflow-y-auto">
         {/* Wallet Address */}
         <div className="p-4 border-b border-bg-surface">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <Wallet className="text-primary" size={16} />
             <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
-              Wallet Address
+              Wallet
             </span>
           </div>
-          <div className="p-3 bg-bg-surface/50 rounded-lg border border-bg-surface">
-            <div className="font-mono text-xs text-text-primary break-all">
+
+          {/* ENS Name (if available) */}
+          {mockEnsName && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
+                <Globe className="text-primary flex-shrink-0" size={14} />
+                <span className="text-sm font-semibold text-primary flex-1 truncate">{mockEnsName}</span>
+                <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full font-accent uppercase">
+                  ENS
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Address with Copy Button */}
+          <div className="flex items-center gap-2 p-2 bg-bg-surface/50 rounded-lg border border-bg-surface mb-3">
+            <div className="font-mono text-xs text-text-primary break-all flex-1">
               {bot.wallet?.address || 'N/A'}
             </div>
+            <IconButton
+              onClick={handleCopyAddress}
+              variant="ghost"
+              size="sm"
+              aria-label="Copy address"
+              className="flex-shrink-0"
+            >
+              {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
+            </IconButton>
           </div>
+
+          {/* Balance Display */}
+          <div className="flex items-center justify-between p-3 bg-bg-surface/30 rounded-lg border border-bg-surface mb-3">
+            <div className="flex items-center gap-2">
+              <DollarSign className="text-primary" size={14} />
+              <span className="text-xs text-text-secondary">Balance</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-sm font-semibold text-text-primary">
+                  {loadingBalance ? '...' : containerBalance}
+                </span>
+                <span className="text-xs text-text-muted">ETH</span>
+              </div>
+              <IconButton
+                onClick={fetchContainerBalance}
+                variant="ghost"
+                size="sm"
+                aria-label="Refresh balance"
+                className={cn('flex-shrink-0', loadingBalance && 'animate-spin')}
+              >
+                <RefreshCw size={12} />
+              </IconButton>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-2 mb-3">
+            <Button
+              variant="primary"
+              size="sm"
+              fullWidth
+              leftIcon={<ArrowDownToLine size={14} />}
+              className="text-xs shadow-glow-sm hover:shadow-glow-md"
+              onClick={() => setFundModalOpen(true)}
+            >
+              Fund from Master
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Send size={14} />}
+                className="text-xs"
+                onClick={() => setSendEthModalOpen(true)}
+              >
+                Send ETH
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<Globe size={14} />}
+                className="text-xs"
+                onClick={() => setSubdomainModalOpen(true)}
+              >
+                Subdomain
+              </Button>
+            </div>
+          </div>
+
+          {/* Derivation Path */}
           {bot.wallet?.derivationPath && (
-            <div className="mt-2 text-xs text-text-muted">
+            <div className="text-xs text-text-muted">
               <span className="font-accent">Path:</span> {bot.wallet.derivationPath}
             </div>
           )}
         </div>
+
+        {/* Transaction History */}
+        {transactions.length > 0 && (
+          <div className="p-4 border-b border-bg-surface">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="text-primary" size={16} />
+                <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
+                  Recent Transactions
+                </span>
+              </div>
+              <span className="text-xs text-text-muted">{transactions.length}</span>
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {transactions.slice(0, 5).map((tx) => (
+                <div
+                  key={tx.id}
+                  className="p-2 bg-bg-surface/30 rounded border border-bg-surface hover:border-bg-hover transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {tx.status === 'confirmed' && (
+                        <CheckCircle2 size={12} className="text-success flex-shrink-0" />
+                      )}
+                      {tx.status === 'pending' && (
+                        <Loader2 size={12} className="text-warning animate-spin flex-shrink-0" />
+                      )}
+                      {tx.status === 'failed' && (
+                        <AlertCircle size={12} className="text-danger flex-shrink-0" />
+                      )}
+                      <span className="text-xs font-semibold text-text-primary">
+                        +{tx.amount} ETH
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        'text-xs px-1.5 py-0.5 rounded uppercase font-accent',
+                        tx.status === 'confirmed' && 'bg-success/20 text-success',
+                        tx.status === 'pending' && 'bg-warning/20 text-warning',
+                        tx.status === 'failed' && 'bg-danger/20 text-danger'
+                      )}
+                    >
+                      {tx.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="font-mono text-xs text-text-muted truncate flex-1">
+                      {tx.hash.slice(0, 10)}...{tx.hash.slice(-8)}
+                    </code>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary-light flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Globe size={10} />
+                    </a>
+                  </div>
+                  <div className="text-xs text-text-muted mt-1">
+                    {new Date(tx.timestamp).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Status & Metrics */}
         <div className="p-4 border-b border-bg-surface space-y-3">
@@ -258,6 +601,410 @@ export function ContainerDetailPanel({
           Delete Container
         </Button>
       </div>
+
+      {/* Subdomain Creation Modal */}
+      <Modal
+        isOpen={subdomainModalOpen}
+        onClose={() => {
+          setSubdomainModalOpen(false);
+          setSubdomainName('');
+        }}
+        title="Create ENS Subdomain"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-text-secondary mb-4">
+              Create a subdomain for this container to make it easily accessible via ENS.
+            </p>
+            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Globe className="text-primary" size={16} />
+                <span className="text-xs font-accent text-primary uppercase">Preview</span>
+              </div>
+              <div className="font-mono text-sm text-text-primary">
+                {subdomainName || 'your-name'}.openclawcrypto.eth
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-accent text-text-secondary mb-2 uppercase tracking-wider">
+              Subdomain Name
+            </label>
+            <Input
+              type="text"
+              value={subdomainName}
+              onChange={(e) => setSubdomainName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              placeholder="container-name"
+              fullWidth
+            />
+            <p className="text-xs text-text-muted mt-1">
+              Only lowercase letters, numbers, and hyphens allowed
+            </p>
+          </div>
+
+          <div className="p-3 bg-bg-surface/50 rounded-lg border border-bg-surface">
+            <div className="text-xs text-text-muted space-y-1">
+              <p>• Subdomain will point to: {bot.wallet?.address || 'N/A'}</p>
+              <p>• This is a permanent action</p>
+              <p>• Gas fees will apply (~0.01 ETH)</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={handleCreateSubdomain}
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={!subdomainName || subdomainName.length < 3}
+              leftIcon={<Globe size={18} />}
+              className="shadow-glow-md hover:shadow-glow-lg font-bold"
+            >
+              Create Subdomain
+            </Button>
+            <Button
+              onClick={() => {
+                setSubdomainModalOpen(false);
+                setSubdomainName('');
+              }}
+              variant="secondary"
+              size="lg"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Send ETH Modal */}
+      <Modal
+        isOpen={sendEthModalOpen}
+        onClose={() => {
+          setSendEthModalOpen(false);
+          setSendAmount('');
+          setRecipientAddress('');
+        }}
+        title="Send ETH"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-text-secondary mb-4">
+              Send ETH from this container's wallet to another address.
+            </p>
+
+            {/* Current Balance */}
+            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="text-primary" size={16} />
+                <span className="text-xs font-accent text-primary uppercase">Current Balance</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-2xl font-bold text-text-primary">{containerBalance}</span>
+                <span className="text-sm text-text-muted">ETH</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Recipient Address */}
+          <div>
+            <label className="block text-sm font-accent text-text-secondary mb-2 uppercase tracking-wider">
+              Recipient Address
+            </label>
+            <Input
+              type="text"
+              value={recipientAddress}
+              onChange={(e) => setRecipientAddress(e.target.value)}
+              placeholder="0x..."
+              fullWidth
+            />
+            {recipientAddress && !isValidAddress(recipientAddress) && (
+              <p className="text-xs text-danger mt-1">Invalid Ethereum address</p>
+            )}
+            {recipientAddress && isValidAddress(recipientAddress) && (
+              <p className="text-xs text-success mt-1 flex items-center gap-1">
+                <Check size={12} /> Valid address
+              </p>
+            )}
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="block text-sm font-accent text-text-secondary mb-2 uppercase tracking-wider">
+              Amount (ETH)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                placeholder="0.0"
+                step="0.0001"
+                min="0"
+                max={containerBalance}
+                fullWidth
+              />
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setSendAmount(containerBalance)}
+                className="whitespace-nowrap"
+              >
+                Max
+              </Button>
+            </div>
+            {sendAmount && parseFloat(sendAmount) > parseFloat(containerBalance) && (
+              <p className="text-xs text-danger mt-1">Insufficient balance</p>
+            )}
+          </div>
+
+          {/* Transaction Summary */}
+          {sendAmount && parseFloat(sendAmount) > 0 && (
+            <div className="p-3 bg-bg-surface/50 rounded-lg border border-bg-surface space-y-2">
+              <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Transaction Summary</div>
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">Amount</span>
+                <span className="font-mono text-text-primary">{sendAmount} ETH</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">Gas Fee (estimated)</span>
+                <span className="font-mono text-text-primary">{mockGasFee} ETH</span>
+              </div>
+              <div className="border-t border-bg-surface pt-2 mt-2">
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-text-primary">Total</span>
+                  <span className="font-mono text-primary">{totalAmount} ETH</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning */}
+          <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="text-warning flex-shrink-0 mt-0.5" size={16} />
+              <div className="text-xs text-text-secondary space-y-1">
+                <p className="font-semibold text-warning">Please verify before sending</p>
+                <p>• Double-check the recipient address</p>
+                <p>• Transactions cannot be reversed</p>
+                <p>• Ensure sufficient balance for gas fees</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={handleSendEth}
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={!canSend}
+              leftIcon={<Send size={18} />}
+              className="shadow-glow-md hover:shadow-glow-lg font-bold"
+            >
+              Send ETH
+            </Button>
+            <Button
+              onClick={() => {
+                setSendEthModalOpen(false);
+                setSendAmount('');
+                setRecipientAddress('');
+              }}
+              variant="secondary"
+              size="lg"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Fund from Master Modal */}
+      <Modal
+        isOpen={fundModalOpen}
+        onClose={() => {
+          setFundModalOpen(false);
+          setFundAmount('');
+          setTransactionHash(null);
+          setTransactionError(null);
+        }}
+        title="Fund from Master Wallet"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-text-secondary mb-4">
+              Send ETH from your Master Wallet to this container's wallet.
+            </p>
+
+            {/* Master Wallet Balance */}
+            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="text-primary" size={16} />
+                <span className="text-xs font-accent text-primary uppercase">Master Wallet Balance</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-2xl font-bold text-text-primary">
+                  {masterWalletBalance.toFixed(4)}
+                </span>
+                <span className="text-sm text-text-muted">ETH</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="block text-sm font-accent text-text-secondary mb-2 uppercase tracking-wider">
+              Amount (ETH)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+                placeholder="0.0"
+                step="0.0001"
+                min="0"
+                max={masterWalletBalance.toString()}
+                fullWidth
+              />
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setFundAmount(masterWalletBalance.toString())}
+                className="whitespace-nowrap"
+              >
+                Max
+              </Button>
+            </div>
+            {fundAmount && parseFloat(fundAmount) > masterWalletBalance && (
+              <p className="text-xs text-danger mt-1">Insufficient master wallet balance</p>
+            )}
+          </div>
+
+          {/* Transaction Summary */}
+          {fundAmount && parseFloat(fundAmount) > 0 && (
+            <div className="p-3 bg-bg-surface/50 rounded-lg border border-bg-surface space-y-2">
+              <div className="text-xs text-text-muted uppercase tracking-wider mb-2">Transaction Summary</div>
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">Amount</span>
+                <span className="font-mono text-text-primary">{fundAmount} ETH</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">Gas Fee (estimated)</span>
+                <span className="font-mono text-text-primary">0.0021 ETH</span>
+              </div>
+              <div className="border-t border-bg-surface pt-2 mt-2">
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-text-primary">Total</span>
+                  <span className="font-mono text-primary">
+                    {(parseFloat(fundAmount) + 0.0021).toFixed(4)} ETH
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="p-3 bg-info/10 border border-info/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Wallet className="text-info flex-shrink-0 mt-0.5" size={16} />
+              <div className="text-xs text-text-secondary space-y-1">
+                <p className="font-semibold text-info">Funding Container Wallet</p>
+                <p>• Funds will be sent from master wallet to {bot.name}</p>
+                <p>• The container can use these funds for transactions</p>
+                <p>• Transaction cannot be reversed</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction Status */}
+          {transactionHash && (
+            <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="text-success flex-shrink-0 mt-0.5" size={16} />
+                <div className="text-xs text-text-secondary space-y-1 flex-1">
+                  <p className="font-semibold text-success">Transaction Sent!</p>
+                  <p className="text-text-muted">Transaction Hash:</p>
+                  <div className="flex items-center gap-2 p-2 bg-bg-surface/50 rounded border border-success/20">
+                    <code className="font-mono text-xs text-text-primary break-all flex-1">
+                      {transactionHash}
+                    </code>
+                    <IconButton
+                      onClick={() => {
+                        navigator.clipboard.writeText(transactionHash);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Copy transaction hash"
+                      className="flex-shrink-0"
+                    >
+                      <Copy size={12} />
+                    </IconButton>
+                  </div>
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${transactionHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-light underline inline-flex items-center gap-1"
+                  >
+                    View on Etherscan
+                    <Globe size={12} />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Transaction Error */}
+          {transactionError && (
+            <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="text-danger flex-shrink-0 mt-0.5" size={16} />
+                <div className="text-xs text-text-secondary space-y-1">
+                  <p className="font-semibold text-danger">Transaction Failed</p>
+                  <p className="text-text-primary">{transactionError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={handleFundFromMaster}
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={
+                !fundAmount ||
+                parseFloat(fundAmount) <= 0 ||
+                parseFloat(fundAmount) > masterWalletBalance ||
+                sendingTransaction
+              }
+              leftIcon={
+                sendingTransaction ? <Loader2 size={18} className="animate-spin" /> : <ArrowDownToLine size={18} />
+              }
+              className="shadow-glow-md hover:shadow-glow-lg font-bold"
+            >
+              {sendingTransaction ? 'Sending...' : 'Fund to bot'}
+            </Button>
+            <Button
+              onClick={() => {
+                setFundModalOpen(false);
+                setFundAmount('');
+                setTransactionHash(null);
+                setTransactionError(null);
+              }}
+              variant="secondary"
+              size="lg"
+            >
+              {transactionHash ? 'Close' : 'Cancel'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

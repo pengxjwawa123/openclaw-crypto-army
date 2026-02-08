@@ -43,34 +43,6 @@ export function createWalletRouter(cryptoService: CryptoService): Router {
         }
       }
 
-      // BSC
-      if (process.env.BSC_RPC_URL) {
-        try {
-          const provider = new JsonRpcProvider(process.env.BSC_RPC_URL);
-          const balance = await provider.getBalance(masterWallet.address);
-          balances.bsc = {
-            balance: balance.toString(),
-            formatted: (Number(balance) / 1e18).toFixed(4),
-          };
-        } catch (error) {
-          console.error('Failed to fetch BSC balance:', error);
-        }
-      }
-
-      // Base Sepolia
-      if (process.env.BASE_SEPOLIA_RPC_URL) {
-        try {
-          const provider = new JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
-          const balance = await provider.getBalance(masterWallet.address);
-          balances.base_sepolia = {
-            balance: balance.toString(),
-            formatted: (Number(balance) / 1e18).toFixed(4),
-          };
-        } catch (error) {
-          console.error('Failed to fetch Base Sepolia balance:', error);
-        }
-      }
-
       res.json({
         address: masterWallet.address,
         derivationPath: masterWallet.derivationPath,

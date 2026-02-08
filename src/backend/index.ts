@@ -8,6 +8,7 @@ import { WebSocketService } from './services/websocket';
 import { CryptoService } from './services/crypto';
 import { createBotRouter } from './routes/bots';
 import { createWalletRouter } from './routes/wallets';
+import { createTransactionRouter } from './routes/transactions';
 import { initDatabase, getAllBotConfigs } from './services/database';
 
 const PORT = process.env.PORT || 3000;
@@ -49,6 +50,7 @@ async function main() {
   // API Routes
   app.use('/api/bots', createBotRouter(dockerManager, cryptoService));
   app.use('/api/wallets', createWalletRouter(cryptoService));
+  app.use('/api/transactions', createTransactionRouter(cryptoService));
 
   // Health check
   app.get('/api/health', (req, res) => {

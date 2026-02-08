@@ -3,6 +3,7 @@ import { Plus, Server, Circle, Activity } from 'lucide-react';
 import { Bot } from '../../types';
 import { cn } from '../../lib/cn';
 import { Button } from '../ui/Button';
+import { MasterWallet } from './MasterWallet';
 
 interface ContainerSidebarProps {
   bots: Bot[];
@@ -73,13 +74,19 @@ export function ContainerSidebar({ bots, selectedBotId, onSelectBot, onCreateBot
   return (
     <div className="w-72 h-full bg-bg-elevated border-r border-bg-surface flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-bg-surface">
-        <div className="flex py-3 items-center gap-3 flex-shrink-0">
+      <div className="flex border-b border-bg-surface p-4 items-center gap-3 flex-shrink-0">
           <Activity className="text-primary" size={28} strokeWidth={2.5} />
           <h1 className="text-xl sm:text-lg font-bold font-mono text-text-primary tracking-tight">
             OpenClaw Crypto Army
           </h1>
         </div>
+
+      {/* Master Wallet */}
+      <div className="p-4 border-b border-bg-surface flex-shrink-0">
+        <MasterWallet variant="inline" />
+      </div>
+
+      <div className="p-4 border-b border-bg-surface">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Server className="text-primary" size={24} />
