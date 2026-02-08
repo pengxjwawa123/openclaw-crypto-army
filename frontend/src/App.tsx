@@ -1,19 +1,20 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Bot } from './types';
 import { api } from './api';
 import { useWebSocket } from './useWebSocket';
-import { BotCard } from './components/BotCard';
 import { CreateBotModal } from './components/CreateBotModal';
 import { LogsModal } from './components/LogsModal';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
-import { Header } from './components/dashboard/Header';
-import { EmptyState } from './components/dashboard/EmptyState';
-import { Skeleton } from './components/ui/Skeleton';
+import { ContainerSidebar } from './components/dashboard/ContainerSidebar';
+import { ChatInterface } from './components/dashboard/ChatInterface';
+import { ContainerDetailPanel } from './components/dashboard/ContainerDetailPanel';
 import { ImagePullProgress } from './components/ui/ImagePullProgress';
 
 export default function App() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [showDetailPanel, setShowDetailPanel] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingBot, setCreatingBot] = useState(false);
   const [creationStatus, setCreationStatus] = useState<'pulling' | 'creating' | 'success' | 'error'>('pulling');
@@ -23,7 +24,7 @@ export default function App() {
     botName: '',
   });
 
-  const { botStatuses, connected } = useWebSocket('/ws');
+  const { botStatuses } = useWebSocket('/ws');
 
   const loadBots = async () => {
     try {
@@ -52,14 +53,6 @@ export default function App() {
     }
   }, [botStatuses]);
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const total = bots.length;
-    const running = bots.filter((b) => b.status.state === 'running').length;
-    const stopped = bots.filter((b) => b.status.state === 'stopped').length;
-    const error = bots.filter((b) => b.status.state === 'error').length;
-    return { total, running, stopped, error };
-  }, [bots]);
 
   const handleCreateBot = async (data: { name: string; image: string; env: Record<string, string> }) => {
     try {
@@ -140,26 +133,29 @@ export default function App() {
     setLogsModal({ open: true, botId: id, botName: name });
   };
 
+  const handleSelectBot = (botId: string) => {
+    setSelectedBotId(botId);
+    setShowDetailPanel(true);
+  };
+
+  // Get selected bot object
+  const selectedBot = selectedBotId ? bots.find((b) => b.id === selectedBotId) || null : null;
+
+  // Auto-select first bot when bots load
+  useEffect(() => {
+    if (!loading && bots.length > 0 && !selectedBotId) {
+      setSelectedBotId(bots[0].id);
+    }
+  }, [bots, loading, selectedBotId]);
+
   if (loading) {
     return (
-      <DashboardLayout
-        header={
-          <Header
-            connected={false}
-            totalBots={0}
-            runningBots={0}
-            stoppedBots={0}
-            errorBots={0}
-            onCreateBot={() => {}}
-          />
-        }
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="space-y-4">
-              <Skeleton className="h-64 w-full" />
-            </div>
-          ))}
+      <DashboardLayout layout="three-column">
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+            <p className="text-text-muted">Loading containers...</p>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -167,39 +163,34 @@ export default function App() {
 
   return (
     <DashboardLayout
-      header={
-        <Header
-          connected={connected}
-          totalBots={stats.total}
-          runningBots={stats.running}
-          stoppedBots={stats.stopped}
-          errorBots={stats.error}
+      layout="three-column"
+      sidebar={
+        <ContainerSidebar
+          bots={bots}
+          selectedBotId={selectedBotId}
+          onSelectBot={handleSelectBot}
           onCreateBot={() => setCreateModalOpen(true)}
         />
       }
+      rightPanel={
+        showDetailPanel && selectedBot ? (
+          <ContainerDetailPanel
+            bot={selectedBot}
+            onClose={() => setShowDetailPanel(false)}
+            onStart={() => handleStartBot(selectedBot.id)}
+            onStop={() => handleStopBot(selectedBot.id)}
+            onRestart={() => handleRestartBot(selectedBot.id)}
+            onDelete={() => {
+              handleDeleteBot(selectedBot.id, selectedBot.name);
+              setShowDetailPanel(false);
+              setSelectedBotId(null);
+            }}
+            onViewLogs={() => handleViewLogs(selectedBot.id, selectedBot.name)}
+          />
+        ) : null
+      }
     >
-      {bots.length === 0 ? (
-        <EmptyState onCreateBot={() => setCreateModalOpen(true)} />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bots.map((bot, index) => (
-            <div
-              key={bot.id}
-              className="animate-slide-up"
-              style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
-            >
-              <BotCard
-                bot={bot}
-                onStart={() => handleStartBot(bot.id)}
-                onStop={() => handleStopBot(bot.id)}
-                onRestart={() => handleRestartBot(bot.id)}
-                onDelete={() => handleDeleteBot(bot.id, bot.name)}
-                onViewLogs={() => handleViewLogs(bot.id, bot.name)}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+      <ChatInterface bot={selectedBot} />
 
       <CreateBotModal
         isOpen={createModalOpen}
@@ -214,10 +205,7 @@ export default function App() {
         onClose={() => setLogsModal({ open: false, botId: '', botName: '' })}
       />
 
-      <ImagePullProgress
-        isVisible={creatingBot}
-        status={creationStatus}
-      />
+      <ImagePullProgress isVisible={creatingBot} status={creationStatus} />
     </DashboardLayout>
   );
 }
