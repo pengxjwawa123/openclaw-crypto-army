@@ -44,6 +44,7 @@ export interface MasterWallet {
   address: string;
   derivationPath: string;
   index: number;
+  ensName?: string;
   balances: Record<string, {
     balance: string;
     formatted: string;

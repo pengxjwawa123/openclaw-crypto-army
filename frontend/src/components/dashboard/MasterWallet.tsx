@@ -102,9 +102,16 @@ export function MasterWallet() {
           <div className="flex items-center justify-between mb-3 pb-3 border-b border-bg-surface">
             <div className="flex items-center gap-2">
               <Wallet className="text-primary" size={20} />
-              <span className="text-sm font-accent text-text-secondary uppercase tracking-wider">
-                Master Wallet
-              </span>
+              <div className="flex flex-col">
+                <span className="text-sm font-accent text-text-secondary uppercase tracking-wider">
+                  Master Wallet
+                </span>
+                {wallet.ensName && (
+                  <span className="text-sm font-semibold text-primary">
+                    {wallet.ensName}
+                  </span>
+                )}
+              </div>
             </div>
             <IconButton
               onClick={fetchWallet}
@@ -117,9 +124,26 @@ export function MasterWallet() {
             </IconButton>
           </div>
 
+          {/* ENS Name (if available) */}
+          {wallet.ensName && (
+            <div className="mb-3">
+              <span className="text-xs text-text-muted uppercase tracking-wider">ENS Name</span>
+              <div className="flex items-center gap-2 mt-1 p-2 bg-primary/10 border border-primary/20 rounded">
+                <span className="text-base font-semibold text-primary flex-1">
+                  {wallet.ensName}
+                </span>
+                <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full font-accent uppercase">
+                  ENS
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Address */}
           <div className="mb-3">
-            <span className="text-xs text-text-muted uppercase tracking-wider">Address</span>
+            <span className="text-xs text-text-muted uppercase tracking-wider">
+              {wallet.ensName ? 'Address' : 'Wallet Address'}
+            </span>
             <div className="flex items-center gap-2 mt-1 p-2 bg-bg-surface/50 rounded">
               <span className="text-sm font-mono text-text-primary flex-1 truncate">
                 {wallet.address}

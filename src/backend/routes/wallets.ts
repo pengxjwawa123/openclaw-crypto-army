@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { CryptoService } from '../services/crypto';
-import { JsonRpcProvider } from 'ethers';
+import { JsonRpcProvider, Network } from 'ethers';
 
 export function createWalletRouter(cryptoService: CryptoService): Router {
   const router = Router();
@@ -12,16 +12,32 @@ export function createWalletRouter(cryptoService: CryptoService): Router {
 
       // Get balance from multiple networks
       const balances: Record<string, { balance: string; formatted: string }> = {};
+      let ensName: string | null = null;
 
-      // Ethereum mainnet
+      // Ethereum mainnet or testnet
       if (process.env.ETH_RPC_URL) {
         try {
-          const provider = new JsonRpcProvider(process.env.ETH_RPC_URL);
+          // Create provider with proper network configuration for ENS
+          let provider: JsonRpcProvider;
+          provider = new JsonRpcProvider(process.env.ETH_RPC_URL);
+
           const balance = await provider.getBalance(masterWallet.address);
           balances.ethereum = {
             balance: balance.toString(),
             formatted: (Number(balance) / 1e18).toFixed(4),
           };
+
+          // Try to resolve ENS name
+          try {
+            const resolvedEns = await provider.lookupAddress(masterWallet.address);
+            console.log('ENS lookup result:', resolvedEns);
+            if (resolvedEns) {
+              ensName = resolvedEns;
+            }
+          } catch (ensError) {
+            // ENS lookup failed (expected if no ENS name exists)
+            console.debug('ENS lookup failed:', ensError);
+          }
         } catch (error) {
           console.error('Failed to fetch ETH balance:', error);
         }
@@ -59,6 +75,7 @@ export function createWalletRouter(cryptoService: CryptoService): Router {
         address: masterWallet.address,
         derivationPath: masterWallet.derivationPath,
         index: 0,
+        ensName: ensName || undefined,
         balances,
       });
     } catch (error: any) {
