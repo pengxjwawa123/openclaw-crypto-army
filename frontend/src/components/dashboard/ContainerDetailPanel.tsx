@@ -21,6 +21,12 @@ import {
   Globe,
   ArrowDownToLine,
   RefreshCw,
+  Settings,
+  Eye,
+  EyeOff,
+  Plus,
+  Minus,
+  Save,
 } from 'lucide-react';
 import { Bot, MasterWallet } from '../../types';
 import { cn } from '../../lib/cn';
@@ -91,6 +97,11 @@ export function ContainerDetailPanel({
   const [creatingSubdomain, setCreatingSubdomain] = useState(false);
   const [subdomainTxHash, setSubdomainTxHash] = useState<string | null>(null);
   const [subdomainError, setSubdomainError] = useState<string | null>(null);
+  const [envModalOpen, setEnvModalOpen] = useState(false);
+  const [editedEnv, setEditedEnv] = useState<Record<string, string>>({});
+  const [visibleEnvKeys, setVisibleEnvKeys] = useState<Set<string>>(new Set());
+  const [recreating, setRecreating] = useState(false);
+  const [envShowAll, setEnvShowAll] = useState(false);
 
   // Fetch container balance
   const fetchContainerBalance = async () => {
@@ -260,6 +271,84 @@ export function ContainerDetailPanel({
     setSendEthModalOpen(false);
     setSendAmount('');
     setRecipientAddress('');
+  };
+
+  // Open env modal and initialize edited env
+  const handleOpenEnvModal = () => {
+    if (bot?.env) {
+      const filteredEnv = Object.entries(bot.env)
+        .filter(([key]) => !['PRIVATE_KEY', 'WALLET_ADDRESS', 'BOT_ID', 'BOT_NAME'].includes(key))
+        .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+      setEditedEnv(filteredEnv);
+    }
+    setEnvModalOpen(true);
+  };
+
+  const handleToggleEnvVisibility = (key: string) => {
+    setVisibleEnvKeys((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAddEnvVar = () => {
+    const newKey = `NEW_VAR_${Object.keys(editedEnv).length + 1}`;
+    setEditedEnv({ ...editedEnv, [newKey]: '' });
+  };
+
+  const handleRemoveEnvVar = (key: string) => {
+    const { [key]: _, ...rest } = editedEnv;
+    setEditedEnv(rest);
+  };
+
+  const handleEnvKeyChange = (oldKey: string, newKey: string) => {
+    const { [oldKey]: value, ...rest } = editedEnv;
+    setEditedEnv({ ...rest, [newKey]: value });
+  };
+
+  const handleEnvValueChange = (key: string, value: string) => {
+    setEditedEnv({ ...editedEnv, [key]: value });
+  };
+
+  const handleSaveEnv = async () => {
+    if (!bot?.id) return;
+
+    try {
+      setRecreating(true);
+      const response = await fetch(`http://localhost:3000/api/bots/${bot.id}/recreate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          env: editedEnv,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to recreate container');
+      }
+
+      // Close modal and refresh
+      setEnvModalOpen(false);
+
+      // Refresh bot data after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error: any) {
+      console.error('Failed to recreate container:', error);
+      alert(`Failed to update environment: ${error.message}`);
+    } finally {
+      setRecreating(false);
+    }
   };
 
   const handleFundFromMaster = async () => {
@@ -565,6 +654,80 @@ export function ContainerDetailPanel({
               <p className="text-xs text-text-muted">No transactions yet</p>
               <p className="text-xs text-text-muted mt-1">
                 Fund this container to see transaction history
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Environment Variables */}
+        <div className="p-4 border-b border-bg-surface">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Settings className="text-primary" size={16} />
+              <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
+                Environment Variables
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleOpenEnvModal}
+              className="h-6 px-2 text-xs"
+            >
+              <Settings size={12} className="mr-1" />
+              Edit
+            </Button>
+          </div>
+
+          {bot.env && Object.keys(bot.env).length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {Object.entries(bot.env)
+                .filter(([key]) => !['PRIVATE_KEY', 'WALLET_ADDRESS', 'BOT_ID', 'BOT_NAME'].includes(key))
+                .slice(0, envShowAll ? undefined : 5)
+                .map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="p-2 bg-bg-surface/30 rounded border border-bg-surface"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs font-semibold text-primary font-mono">
+                        {key}
+                      </span>
+                      <button
+                        onClick={() => handleToggleEnvVisibility(key)}
+                        className="text-text-muted hover:text-text-primary transition-colors"
+                      >
+                        {visibleEnvKeys.has(key) ? (
+                          <EyeOff size={12} />
+                        ) : (
+                          <Eye size={12} />
+                        )}
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs text-text-secondary break-all">
+                      {visibleEnvKeys.has(key) ? value : '••••••••••••••••'}
+                    </div>
+                  </div>
+                ))}
+              {Object.keys(bot.env).filter(
+                (key) => !['PRIVATE_KEY', 'WALLET_ADDRESS', 'BOT_ID', 'BOT_NAME'].includes(key)
+              ).length > 5 && !envShowAll && (
+                <button
+                  onClick={() => setEnvShowAll(true)}
+                  className="w-full text-xs text-primary hover:text-primary-light py-1"
+                >
+                  Show all ({Object.keys(bot.env).filter(
+                    (key) => !['PRIVATE_KEY', 'WALLET_ADDRESS', 'BOT_ID', 'BOT_NAME'].includes(key)
+                  ).length} total)
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 bg-bg-surface/30 rounded-lg border border-bg-surface text-center">
+              <Settings size={24} className="text-text-muted mx-auto mb-2" />
+              <p className="text-xs text-text-muted">No custom environment variables</p>
+              <p className="text-xs text-text-muted mt-1">
+                Click Edit to add environment variables
               </p>
             </div>
           )}
@@ -1203,6 +1366,119 @@ export function ContainerDetailPanel({
               size="lg"
             >
               {transactionHash ? 'Close' : 'Cancel'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Environment Variables Edit Modal */}
+      <Modal
+        isOpen={envModalOpen}
+        onClose={() => {
+          setEnvModalOpen(false);
+          setEditedEnv({});
+        }}
+        title="Edit Environment Variables"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm text-text-secondary mb-4">
+              Add or modify environment variables for this container. The container will be recreated with the new configuration.
+            </p>
+
+            <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg mb-4">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="text-warning flex-shrink-0 mt-0.5" size={16} />
+                <div className="text-xs text-text-secondary space-y-1">
+                  <p className="font-semibold text-warning">Important Notes</p>
+                  <p>• The container will be stopped and recreated</p>
+                  <p>• Sensitive variables (PRIVATE_KEY, WALLET_ADDRESS) cannot be modified</p>
+                  <p>• Changes take effect immediately after recreation</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Environment Variables List */}
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {Object.entries(editedEnv).map(([key, value]) => (
+              <div
+                key={key}
+                className="p-3 bg-bg-surface/50 rounded-lg border border-bg-surface"
+              >
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    value={key}
+                    onChange={(e) => handleEnvKeyChange(key, e.target.value)}
+                    placeholder="KEY"
+                    className="font-mono text-xs"
+                  />
+                  <IconButton
+                    onClick={() => handleRemoveEnvVar(key)}
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Remove variable"
+                    className="flex-shrink-0"
+                  >
+                    <Minus size={14} className="text-danger" />
+                  </IconButton>
+                </div>
+                <Input
+                  value={value}
+                  onChange={(e) => handleEnvValueChange(key, e.target.value)}
+                  placeholder="value"
+                  className="font-mono text-xs"
+                  fullWidth
+                />
+              </div>
+            ))}
+
+            {Object.keys(editedEnv).length === 0 && (
+              <div className="p-4 bg-bg-surface/30 rounded-lg border border-bg-surface text-center">
+                <Settings size={24} className="text-text-muted mx-auto mb-2" />
+                <p className="text-xs text-text-muted">No environment variables</p>
+                <p className="text-xs text-text-muted mt-1">Click "Add Variable" to create one</p>
+              </div>
+            )}
+          </div>
+
+          {/* Add Variable Button */}
+          <Button
+            onClick={handleAddEnvVar}
+            variant="secondary"
+            size="md"
+            leftIcon={<Plus size={14} />}
+            fullWidth
+          >
+            Add Variable
+          </Button>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={handleSaveEnv}
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={recreating}
+              leftIcon={
+                recreating ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />
+              }
+              className="shadow-glow-md hover:shadow-glow-lg font-bold"
+            >
+              {recreating ? 'Recreating Container...' : 'Save & Recreate'}
+            </Button>
+            <Button
+              onClick={() => {
+                setEnvModalOpen(false);
+                setEditedEnv({});
+              }}
+              variant="secondary"
+              size="lg"
+              disabled={recreating}
+            >
+              Cancel
             </Button>
           </div>
         </div>

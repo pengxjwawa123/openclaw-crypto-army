@@ -110,6 +110,31 @@ export class DockerManager extends EventEmitter {
     this.emit('bot:restarted', { id: botId });
   }
 
+  async recreateBot(config: BotConfig): Promise<string> {
+    try {
+      this.emit('bot:recreating', { id: config.id, name: config.name });
+
+      // Remove existing container if it exists
+      const existingContainer = await this.getContainerByBotId(config.id);
+      if (existingContainer) {
+        const info = await existingContainer.inspect();
+        if (info.State.Running) {
+          await existingContainer.stop();
+        }
+        await existingContainer.remove();
+        this.stopStatsStream(existingContainer.id);
+      }
+
+      // Create new container with updated config
+      const containerId = await this.createBot(config);
+      this.emit('bot:recreated', { id: config.id, containerId });
+      return containerId;
+    } catch (error: any) {
+      this.emit('bot:error', { id: config.id, error: error.message });
+      throw error;
+    }
+  }
+
   async removeBot(botId: string): Promise<void> {
     try {
       const container = await this.getContainerByBotId(botId);

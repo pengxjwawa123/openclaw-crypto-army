@@ -94,6 +94,8 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
           // Automatically inject the private key as an environment variable
           PRIVATE_KEY: wallet.privateKey,
           WALLET_ADDRESS: wallet.address,
+          // Inject OpenClaw Gateway Token if configured
+          ...(process.env.OPENCLAW_GATEWAY_TOKEN && { OPENCLAW_GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN }),
         },
         volumes: body.volumes || [],
         wallet: {
@@ -149,6 +151,46 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
       await saveBotConfig(updatedConfig);
 
       res.json(updatedConfig);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Recreate bot with updated environment variables
+  router.post('/:id/recreate', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { env } = req.body;
+
+      const config = await getBotConfig(id);
+      if (!config) {
+        return res.status(404).json({ error: 'Bot not found' });
+      }
+
+      // Update config with new environment variables
+      const updatedConfig: BotConfig = {
+        ...config,
+        env: {
+          ...config.env,
+          ...env,
+          // Ensure critical env vars are preserved
+          PRIVATE_KEY: config.env.PRIVATE_KEY,
+          WALLET_ADDRESS: config.env.WALLET_ADDRESS,
+          ...(process.env.OPENCLAW_GATEWAY_TOKEN && { OPENCLAW_GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN }),
+        },
+        updatedAt: Date.now(),
+      };
+
+      await saveBotConfig(updatedConfig);
+
+      // Recreate the container with new environment
+      const containerId = await dockerManager.recreateBot(updatedConfig);
+
+      res.json({
+        success: true,
+        containerId,
+        message: 'Bot recreated with updated environment variables',
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
