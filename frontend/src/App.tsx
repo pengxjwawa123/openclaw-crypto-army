@@ -190,7 +190,19 @@ export default function App() {
         ) : null
       }
     >
-      <ChatInterface bot={selectedBot} />
+      {selectedBot ? (
+        <ChatInterface
+          botId={selectedBot.id}
+          botName={selectedBot.name}
+          isRunning={selectedBot.status.state === 'running'}
+        />
+      ) : (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <p className="text-text-muted">Select a container to start chatting</p>
+          </div>
+        </div>
+      )}
 
       <CreateBotModal
         isOpen={createModalOpen}

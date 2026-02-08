@@ -3,6 +3,9 @@ import { DockerManager } from '../services/docker';
 import { CryptoService } from '../services/crypto';
 import { BotCreateRequest, BotUpdateRequest, BotConfig } from '../types/bot';
 import { v4 as uuidv4 } from 'uuid';
+import { homedir } from 'os';
+import { join } from 'path';
+import { JsonRpcProvider } from 'ethers';
 import {
   saveBotConfig,
   getBotConfig,
@@ -85,6 +88,26 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
       // Generate a unique wallet for this bot
       const wallet = cryptoService.generateWallet();
 
+      // Prepare volume mounts
+      const homeDir = homedir();
+      const defaultVolumes = [
+        // OpenClaw workflow directory for persistent workflow data
+        {
+          source: join(homeDir, '.openclaw', 'workflow'),
+          target: '/root/.openclaw/workflow'
+        },
+        // Bot-specific data directory
+        {
+          source: join(process.cwd(), 'data', 'bots', body.name),
+          target: '/app/data'
+        },
+        // Workspace directory for file operations
+        {
+          source: join(process.cwd(), 'workspace', body.name),
+          target: '/workspace'
+        }
+      ];
+
       const config: BotConfig = {
         id: uuidv4(),
         name: body.name,
@@ -94,10 +117,18 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
           // Automatically inject the private key as an environment variable
           PRIVATE_KEY: wallet.privateKey,
           WALLET_ADDRESS: wallet.address,
+          // Inject blockchain RPC URL
+          RPC_URL: process.env.RPC_URL || process.env.ETH_RPC_URL || 'https://1rpc.io/sepolia',
+          ETH_RPC_URL: process.env.ETH_RPC_URL || process.env.RPC_URL || 'https://1rpc.io/sepolia',
+          // Inject chain ID if configured
+          ...(process.env.CHAIN_ID && { CHAIN_ID: process.env.CHAIN_ID }),
           // Inject OpenClaw Gateway Token if configured
           ...(process.env.OPENCLAW_GATEWAY_TOKEN && { OPENCLAW_GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN }),
+          // Inject Anthropic API Key for AI features
+          ...(process.env.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
         },
-        volumes: body.volumes || [],
+        // Merge user-provided volumes with default volumes (user volumes take precedence)
+        volumes: [...defaultVolumes, ...(body.volumes || [])],
         wallet: {
           address: wallet.address,
           privateKey: wallet.privateKey,
@@ -176,7 +207,12 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
           // Ensure critical env vars are preserved
           PRIVATE_KEY: config.env.PRIVATE_KEY,
           WALLET_ADDRESS: config.env.WALLET_ADDRESS,
+          // Preserve or update blockchain configuration
+          RPC_URL: config.env.RPC_URL || process.env.RPC_URL || process.env.ETH_RPC_URL || 'https://1rpc.io/sepolia',
+          ETH_RPC_URL: config.env.ETH_RPC_URL || process.env.ETH_RPC_URL || process.env.RPC_URL || 'https://1rpc.io/sepolia',
+          ...(process.env.CHAIN_ID && { CHAIN_ID: process.env.CHAIN_ID }),
           ...(process.env.OPENCLAW_GATEWAY_TOKEN && { OPENCLAW_GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN }),
+          ...(process.env.ANTHROPIC_API_KEY && { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }),
         },
         updatedAt: Date.now(),
       };
@@ -252,6 +288,44 @@ export function createBotRouter(dockerManager: DockerManager, cryptoService: Cry
       const logs = await dockerManager.getBotLogs(id, tail);
       res.json({ logs });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get bot wallet balance
+  router.get('/:id/balance', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const config = await getBotConfig(id);
+
+      if (!config) {
+        return res.status(404).json({ error: 'Bot not found' });
+      }
+
+      if (!config.wallet) {
+        return res.status(400).json({ error: 'Bot has no wallet configured' });
+      }
+
+      // Get RPC URL from bot config or environment
+      const rpcUrl = config.env.RPC_URL || config.env.ETH_RPC_URL || process.env.RPC_URL || process.env.ETH_RPC_URL;
+
+      if (!rpcUrl) {
+        return res.status(500).json({ error: 'No RPC URL configured' });
+      }
+
+      // Fetch balance from blockchain
+      const provider = new JsonRpcProvider(rpcUrl);
+      const balance = await provider.getBalance(config.wallet.address);
+      const balanceInEth = (Number(balance) / 1e18).toFixed(4);
+
+      res.json({
+        address: config.wallet.address,
+        balance: balance.toString(),
+        formatted: balanceInEth,
+        rpcUrl: rpcUrl,
+      });
+    } catch (error: any) {
+      console.error('Failed to fetch bot balance:', error);
       res.status(500).json({ error: error.message });
     }
   });

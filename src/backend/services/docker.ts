@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const LABEL_PREFIX = 'openclaw.bot';
 const NETWORK_NAME = 'openclaw-network';
-const DEFAULT_BOT_IMAGE = 'ghcr.io/openclaw/openclaw:2026.2.6-3';
+const DEFAULT_BOT_IMAGE = 'openclaw-foundry:custom';
 
 export class DockerManager extends EventEmitter {
   private docker: Docker;
@@ -231,7 +231,7 @@ export class DockerManager extends EventEmitter {
     }
   }
 
-  private async getContainerByBotId(botId: string): Promise<Docker.Container | null> {
+  async getContainerByBotId(botId: string): Promise<Docker.Container | null> {
     try {
       const containers = await this.docker.listContainers({
         all: true,

@@ -10,6 +10,7 @@ import { createBotRouter } from './routes/bots';
 import { createWalletRouter } from './routes/wallets';
 import { createTransactionRouter } from './routes/transactions';
 import { createENSRouter } from './routes/ens';
+import { createChatRouter } from './routes/chat';
 import { initDatabase, getAllBotConfigs } from './services/database';
 
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ async function main() {
   app.use('/api/wallets', createWalletRouter(cryptoService));
   app.use('/api/transactions', createTransactionRouter(cryptoService));
   app.use('/api/ens', createENSRouter(cryptoService));
+  app.use('/api/chat', createChatRouter(dockerManager));
 
   // Health check
   app.get('/api/health', (req, res) => {

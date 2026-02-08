@@ -27,6 +27,7 @@ import {
   Plus,
   Minus,
   Save,
+  MessageSquare,
 } from 'lucide-react';
 import { Bot, MasterWallet } from '../../types';
 import { cn } from '../../lib/cn';
@@ -36,7 +37,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { formatPercentage } from '../../lib/formatters';
 import { api } from '../../api';
-import { JsonRpcProvider, formatEther } from 'ethers';
+import { ChatInterface } from './ChatInterface';
 
 interface ContainerDetailPanelProps {
   bot: Bot | null;
@@ -102,18 +103,47 @@ export function ContainerDetailPanel({
   const [visibleEnvKeys, setVisibleEnvKeys] = useState<Set<string>>(new Set());
   const [recreating, setRecreating] = useState(false);
   const [envShowAll, setEnvShowAll] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [walletEnsName, setWalletEnsName] = useState<string | null>(null);
+  const [loadingEns, setLoadingEns] = useState(false);
 
-  // Fetch container balance
-  const fetchContainerBalance = async () => {
+  // Fetch wallet ENS name
+  const fetchWalletEnsName = async () => {
     if (!bot?.wallet?.address) return;
 
     try {
+      setLoadingEns(true);
+      const response = await fetch(`http://localhost:3000/api/ens/lookup/${bot.wallet.address}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch ENS name');
+      }
+
+      const data = await response.json();
+      setWalletEnsName(data.ensName);
+    } catch (error) {
+      console.error('Failed to fetch wallet ENS name:', error);
+      setWalletEnsName(null);
+    } finally {
+      setLoadingEns(false);
+    }
+  };
+
+  // Fetch container balance
+  const fetchContainerBalance = async () => {
+    if (!bot?.id) return;
+
+    try {
       setLoadingBalance(true);
-      // Use Ethereum Sepolia RPC
-      const provider = new JsonRpcProvider('https://1rpc.io/sepolia');
-      const balance = await provider.getBalance(bot.wallet.address);
-      const balanceInEth = formatEther(balance);
-      setContainerBalance(parseFloat(balanceInEth).toFixed(4));
+      // Call backend API to fetch balance
+      const response = await fetch(`http://localhost:3000/api/bots/${bot.id}/balance`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch balance');
+      }
+
+      const data = await response.json();
+      setContainerBalance(data.formatted);
     } catch (error) {
       console.error('Failed to fetch container balance:', error);
       setContainerBalance('0.0000');
@@ -155,9 +185,10 @@ export function ContainerDetailPanel({
     fetchMasterWallet();
   }, []);
 
-  // Fetch container balance when bot changes
+  // Fetch container balance and ENS name when bot changes
   useEffect(() => {
     fetchContainerBalance();
+    fetchWalletEnsName();
   }, [bot?.wallet?.address]);
 
   // Fetch transactions when bot changes
@@ -425,10 +456,9 @@ export function ContainerDetailPanel({
     <div className="w-80 h-full bg-bg-elevated border-l border-bg-surface flex flex-col overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-bg-surface flex items-center justify-between flex-shrink-0">
-        <h3 className="font-bold text-lg text-text-primary font-display">Container Details</h3>
-        <IconButton onClick={onClose} variant="ghost" size="sm" aria-label="Close panel">
-          <X size={18} />
-        </IconButton>
+        <h3 className="font-bold text-lg text-text-primary font-display">
+          {showChat ? 'Chat' : 'Container Details'}
+        </h3>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -496,9 +526,25 @@ export function ContainerDetailPanel({
           )}
 
           {/* Address with Copy Button */}
+          {console.log(walletEnsName)}
           <div className="flex items-center gap-2 p-2 bg-bg-surface/50 rounded-lg border border-bg-surface mb-3">
-            <div className="font-mono text-xs text-text-primary break-all flex-1">
-              {bot.wallet?.address || 'N/A'}
+            <div className="flex-1">
+              {/* ENS Name (if available) */}
+              {loadingEns ? (
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1">
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>Looking up ENS...</span>
+                </div>
+              ) : walletEnsName ? (
+                <div className="text-sm font-medium text-primary mb-1 flex items-center gap-1">
+                  {walletEnsName}
+                  <CheckCircle2 size={14} className="text-success" />
+                </div>
+              ) : null}
+              {/* Wallet Address */}
+              <div className="font-mono text-xs text-text-primary break-all">
+                {bot.wallet?.address || 'N/A'}
+              </div>
             </div>
             <IconButton
               onClick={handleCopyAddress}
@@ -862,6 +908,7 @@ export function ContainerDetailPanel({
       </div>
 
       {/* Actions */}
+      {!showChat && (
       <div className="p-4 border-t border-bg-surface bg-bg-base/50 space-y-2 flex-shrink-0">
         <div className="grid grid-cols-3 gap-2">
           {bot.status.state === 'stopped' ? (
@@ -884,6 +931,7 @@ export function ContainerDetailPanel({
           Delete Container
         </Button>
       </div>
+      )}
 
       {/* Subdomain Creation Modal */}
       <Modal

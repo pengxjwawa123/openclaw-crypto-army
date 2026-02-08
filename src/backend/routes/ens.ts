@@ -322,5 +322,47 @@ export function createENSRouter(cryptoService: CryptoService): Router {
     }
   });
 
+  // Reverse lookup: Convert address to ENS name
+  router.get('/lookup/:address', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+
+      // Validate address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return res.status(400).json({ error: 'Invalid Ethereum address format' });
+      }
+
+      // Get RPC URL - use Ethereum mainnet for ENS lookup
+      // ENS only works on mainnet, not testnet
+      const rpcUrl = process.env.ETH_RPC_URL || process.env.RPC_URL;
+      if (!rpcUrl) {
+        return res.status(500).json({ error: 'RPC_URL not configured' });
+      }
+
+      // Create provider
+      const provider = new JsonRpcProvider(rpcUrl);
+
+      // Perform reverse ENS lookup
+      let ensName: string | null = null;
+      try {
+        ensName = await provider.lookupAddress(address);
+        console.log({address})
+      } catch (error) {
+        console.debug('ENS lookup failed for address:', address, error);
+        // ENS lookup can fail for various reasons (no ENS, testnet, etc.)
+        // Return null instead of error
+      }
+
+      res.json({
+        address,
+        ensName: ensName || null,
+        hasEns: !!ensName,
+      });
+    } catch (error: any) {
+      console.error('❌ Error performing ENS lookup:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 }

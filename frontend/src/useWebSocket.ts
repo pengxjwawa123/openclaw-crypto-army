@@ -14,8 +14,21 @@ export function useWebSocket(url: string) {
 
   useEffect(() => {
     const connect = () => {
+      // In development, always connect to localhost:3000 for WebSocket
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = url.startsWith('ws') ? url : `${protocol}//${window.location.host}${url}`;
+      let wsUrl: string;
+
+      if (url.startsWith('ws')) {
+        wsUrl = url;
+      } else if (isDev) {
+        // Development: connect to backend on port 3000
+        wsUrl = `ws://localhost:3000${url}`;
+      } else {
+        // Production: connect to same host
+        wsUrl = `${protocol}//${window.location.host}${url}`;
+      }
+
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

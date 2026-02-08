@@ -29,13 +29,24 @@ export interface ENSSubdomain {
   error?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  botId: string;
+  sender: 'user' | 'bot';
+  message: string;
+  timestamp: number;
+  command?: string; // Original command if message is a response
+  error?: string;
+}
+
 interface Database {
   bots: BotConfig[];
   transactions: Transaction[];
   ensSubdomains: ENSSubdomain[];
+  chatMessages: ChatMessage[];
 }
 
-const defaultData: Database = { bots: [], transactions: [], ensSubdomains: [] };
+const defaultData: Database = { bots: [], transactions: [], ensSubdomains: [], chatMessages: [] };
 
 let db: Awaited<ReturnType<typeof JSONFilePreset<Database>>> | null = null;
 
@@ -54,6 +65,12 @@ export async function initDatabase() {
   // Migration: Add ensSubdomains array if it doesn't exist
   if (!db.data.ensSubdomains) {
     db.data.ensSubdomains = [];
+    await db.write();
+  }
+
+  // Migration: Add chatMessages array if it doesn't exist
+  if (!db.data.chatMessages) {
+    db.data.chatMessages = [];
     await db.write();
   }
 
@@ -162,4 +179,21 @@ export async function getENSSubdomainByBotId(botId: string): Promise<ENSSubdomai
 export async function getAllENSSubdomains(): Promise<ENSSubdomain[]> {
   const database = getDatabase();
   return database.data.ensSubdomains.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export async function saveChatMessage(message: ChatMessage): Promise<void> {
+  const database = getDatabase();
+  database.data.chatMessages.push(message);
+  await database.write();
+}
+
+export async function getBotChatMessages(botId: string): Promise<ChatMessage[]> {
+  const database = getDatabase();
+  return database.data.chatMessages.filter(m => m.botId === botId).sort((a, b) => a.timestamp - b.timestamp);
+}
+
+export async function clearBotChatMessages(botId: string): Promise<void> {
+  const database = getDatabase();
+  database.data.chatMessages = database.data.chatMessages.filter(m => m.botId !== botId);
+  await database.write();
 }

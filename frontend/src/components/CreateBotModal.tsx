@@ -11,11 +11,21 @@ interface CreateBotModalProps {
   onCreate: (data: { name: string; image: string; env: Record<string, string> }) => void;
 }
 
-// Default OpenClaw image - specific version for stability
-const DEFAULT_BOT_IMAGE = 'ghcr.io/openclaw/openclaw:2026.2.6-3';
+// Available bot images
+const AVAILABLE_IMAGES = [
+  {
+    id: 'foundry',
+    name: 'OpenClaw + Foundry (Recommended)',
+    image: 'openclaw-foundry:custom',
+    description: 'Custom image with Foundry Cast pre-installed for blockchain interactions'
+  }
+];
+
+const DEFAULT_BOT_IMAGE = AVAILABLE_IMAGES[0].image; // Foundry image by default
 
 export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProps) {
   const [name, setName] = useState('');
+  const [selectedImage, setSelectedImage] = useState(DEFAULT_BOT_IMAGE);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
     { key: '', value: '' },
   ]);
@@ -30,11 +40,12 @@ export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProp
       }
     });
 
-    // Always use the default OpenClaw image
-    onCreate({ name, image: DEFAULT_BOT_IMAGE, env });
+    // Use the selected image
+    onCreate({ name, image: selectedImage, env });
 
     // Reset form
     setName('');
+    setSelectedImage(DEFAULT_BOT_IMAGE);
     setEnvVars([{ key: '', value: '' }]);
     onClose();
   };
@@ -69,9 +80,46 @@ export function CreateBotModal({ isOpen, onClose, onCreate }: CreateBotModalProp
               required
               fullWidth
             />
-            <p className="text-xs text-text-secondary mt-1 font-mono">
-              Image: {DEFAULT_BOT_IMAGE}
-            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-accent text-text-secondary mb-3 uppercase tracking-wider">
+              Docker Image
+            </label>
+            <div className="space-y-2">
+              {AVAILABLE_IMAGES.map((imageOption) => (
+                <label
+                  key={imageOption.id}
+                  className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    selectedImage === imageOption.image
+                      ? 'border-primary bg-primary/10 shadow-glow-sm'
+                      : 'border-surface-elevated bg-surface hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="image"
+                      value={imageOption.image}
+                      checked={selectedImage === imageOption.image}
+                      onChange={(e) => setSelectedImage(e.target.value)}
+                      className="mt-1 accent-primary"
+                    />
+                    <div className="flex-1">
+                      <div className="font-display text-text-primary font-semibold mb-1">
+                        {imageOption.name}
+                      </div>
+                      <div className="text-xs text-text-secondary font-mono mb-1">
+                        {imageOption.image}
+                      </div>
+                      <div className="text-xs text-text-muted">
+                        {imageOption.description}
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div>

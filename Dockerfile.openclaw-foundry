@@ -1,0 +1,59 @@
+# Custom OpenClaw Dockerfile with Foundry/Cast
+FROM ghcr.io/openclaw/openclaw:main
+
+# Switch to root to install dependencies
+USER root
+
+# Install dependencies needed for Foundry
+RUN apt-get update && apt-get install -y \
+    curl \
+    bash \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Foundry (includes cast, anvil, forge, chisel)
+# Set HOME for foundryup installation
+ENV HOME=/root
+ENV PATH="/root/.foundry/bin:${PATH}"
+
+RUN curl -L https://foundry.paradigm.xyz | bash && \
+    bash -c "source /root/.bashrc && foundryup"
+
+# Copy Foundry binaries to system-wide location accessible by all users
+RUN cp /root/.foundry/bin/* /usr/local/bin/ && \
+    chmod +x /usr/local/bin/cast /usr/local/bin/anvil /usr/local/bin/forge /usr/local/bin/chisel
+
+# Verify Cast installation (now accessible system-wide)
+RUN cast --version
+
+# Environment variables for RPC and private key
+# These will be provided at runtime via docker-compose or docker run
+ENV RPC_URL=""
+ENV PRIVATE_KEY=""
+
+# Create a helper script for Cast commands with auto-configured RPC and key
+RUN echo '#!/bin/bash\n\
+if [ -z "$RPC_URL" ]; then\n\
+  echo "Error: RPC_URL environment variable is not set"\n\
+  exit 1\n\
+fi\n\
+\n\
+# Execute cast with RPC_URL\n\
+if [ -n "$PRIVATE_KEY" ]; then\n\
+  cast "$@" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY"\n\
+else\n\
+  cast "$@" --rpc-url "$RPC_URL"\n\
+fi\n\
+' > /usr/local/bin/cast-auto && chmod +x /usr/local/bin/cast-auto
+
+# Switch back to node user (OpenClaw default user)
+USER node
+
+# Set working directory
+WORKDIR /app
+
+# Labels for documentation
+LABEL org.opencontainers.image.title="OpenClaw with Foundry"
+LABEL org.opencontainers.image.description="OpenClaw bot with Foundry Cast for Ethereum interactions"
+LABEL org.opencontainers.image.vendor="Custom Build"
