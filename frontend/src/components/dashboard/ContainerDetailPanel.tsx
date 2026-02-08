@@ -86,6 +86,11 @@ export function ContainerDetailPanel({
   const [transactionError, setTransactionError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [ensSubdomain, setEnsSubdomain] = useState<any | null>(null);
+  const [loadingENS, setLoadingENS] = useState(false);
+  const [creatingSubdomain, setCreatingSubdomain] = useState(false);
+  const [subdomainTxHash, setSubdomainTxHash] = useState<string | null>(null);
+  const [subdomainError, setSubdomainError] = useState<string | null>(null);
 
   // Fetch container balance
   const fetchContainerBalance = async () => {
@@ -149,11 +154,30 @@ export function ContainerDetailPanel({
     fetchTransactions();
   }, [bot?.id]);
 
-  // Mock ENS name (in real app, this would come from the bot object)
-  const mockEnsName = bot?.wallet?.address === '0xbc4f13c499BBB6B047Cab2Ef72D98f21b3d96C56'
-    ? 'container1.openclawcrypto.eth'
-    : null;
+  // Fetch ENS subdomain when bot changes
+  useEffect(() => {
+    const fetchENSSubdomain = async () => {
+      if (!bot?.id) return;
 
+      try {
+        setLoadingENS(true);
+        const response = await fetch(`http://localhost:3000/api/ens/subdomain/${bot.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setEnsSubdomain(data);
+        } else {
+          setEnsSubdomain(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch ENS subdomain:', error);
+        setEnsSubdomain(null);
+      } finally {
+        setLoadingENS(false);
+      }
+    };
+
+    fetchENSSubdomain();
+  }, [bot?.id]);
 
   // Calculate mock gas fee
   const mockGasFee = '0.0021';
@@ -175,11 +199,53 @@ export function ContainerDetailPanel({
     }
   };
 
-  const handleCreateSubdomain = () => {
-    // Mock subdomain creation
-    console.log('Creating subdomain:', subdomainName);
-    setSubdomainModalOpen(false);
-    setSubdomainName('');
+  const handleCreateSubdomain = async () => {
+    if (!bot?.id || !subdomainName) return;
+
+    try {
+      setCreatingSubdomain(true);
+      setSubdomainError(null);
+      setSubdomainTxHash(null);
+
+      const response = await fetch('http://localhost:3000/api/ens/subdomain', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          botId: bot.id,
+          subdomain: subdomainName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create subdomain');
+      }
+
+      setSubdomainTxHash(data.transactionHash);
+
+      // Refresh ENS subdomain data
+      const subdomainResponse = await fetch(`http://localhost:3000/api/ens/subdomain/${bot.id}`);
+      if (subdomainResponse.ok) {
+        const subdomainData = await subdomainResponse.json();
+        setEnsSubdomain(subdomainData);
+      }
+
+      // Don't close modal immediately - show success message
+      setTimeout(() => {
+        setSubdomainModalOpen(false);
+        setSubdomainName('');
+        setSubdomainTxHash(null);
+      }, 3000);
+
+    } catch (error: any) {
+      console.error('Subdomain creation failed:', error);
+      setSubdomainError(error.message || 'Failed to create subdomain');
+    } finally {
+      setCreatingSubdomain(false);
+    }
   };
 
   const handleSendEth = () => {
@@ -287,15 +353,56 @@ export function ContainerDetailPanel({
           </div>
 
           {/* ENS Name (if available) */}
-          {mockEnsName && (
-            <div className="mb-3">
+          {ensSubdomain && (
+            <div className="mb-3 space-y-2">
               <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
                 <Globe className="text-primary flex-shrink-0" size={14} />
-                <span className="text-sm font-semibold text-primary flex-1 truncate">{mockEnsName}</span>
-                <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full font-accent uppercase">
-                  ENS
+                <span className="text-sm font-semibold text-primary flex-1 truncate">
+                  {ensSubdomain.fullDomain}
+                </span>
+                <span
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded-full font-accent uppercase flex items-center gap-1',
+                    ensSubdomain.status === 'confirmed' && 'bg-success/20 text-success',
+                    ensSubdomain.status === 'pending' && 'bg-warning/20 text-warning',
+                    ensSubdomain.status === 'failed' && 'bg-danger/20 text-danger'
+                  )}
+                >
+                  {ensSubdomain.status === 'pending' && <Loader2 size={10} className="animate-spin" />}
+                  {ensSubdomain.status === 'confirmed' && <CheckCircle2 size={10} />}
+                  {ensSubdomain.status === 'failed' && <AlertCircle size={10} />}
+                  {ensSubdomain.status}
                 </span>
               </div>
+
+              {/* Transaction Hash */}
+              {ensSubdomain.transactionHash && (
+                <div className="p-2 bg-bg-surface/30 rounded border border-bg-surface">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs text-text-muted">Transaction</span>
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${ensSubdomain.transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary-light flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-xs">View</span>
+                      <Globe size={10} />
+                    </a>
+                  </div>
+                  <code className="font-mono text-xs text-text-secondary block truncate">
+                    {ensSubdomain.transactionHash}
+                  </code>
+                </div>
+              )}
+
+              {/* Created timestamp */}
+              {ensSubdomain.timestamp && (
+                <div className="text-xs text-text-muted">
+                  Created: {new Date(ensSubdomain.timestamp).toLocaleString()}
+                </div>
+              )}
             </div>
           )}
 
@@ -382,19 +489,24 @@ export function ContainerDetailPanel({
           )}
         </div>
 
-        {/* Transaction History */}
-        {transactions.length > 0 && (
-          <div className="p-4 border-b border-bg-surface">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <FileText className="text-primary" size={16} />
-                <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
-                  Recent Transactions
-                </span>
-              </div>
-              <span className="text-xs text-text-muted">{transactions.length}</span>
+        {/* Recent Transactions */}
+        <div className="p-4 border-b border-bg-surface">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <FileText className="text-primary" size={16} />
+              <span className="text-xs font-accent text-text-secondary uppercase tracking-wider">
+                Recent Transactions
+              </span>
             </div>
+            {transactions.length > 0 && (
+              <span className="text-xs text-text-muted">{transactions.length}</span>
+            )}
+            {loadingTransactions && (
+              <Loader2 size={12} className="text-primary animate-spin" />
+            )}
+          </div>
 
+          {transactions.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {transactions.slice(0, 5).map((tx) => (
                 <div
@@ -447,8 +559,16 @@ export function ContainerDetailPanel({
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-4 bg-bg-surface/30 rounded-lg border border-bg-surface text-center">
+              <FileText size={24} className="text-text-muted mx-auto mb-2" />
+              <p className="text-xs text-text-muted">No transactions yet</p>
+              <p className="text-xs text-text-muted mt-1">
+                Fund this container to see transaction history
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Status & Metrics */}
         <div className="p-4 border-b border-bg-surface space-y-3">
@@ -608,6 +728,8 @@ export function ContainerDetailPanel({
         onClose={() => {
           setSubdomainModalOpen(false);
           setSubdomainName('');
+          setSubdomainTxHash(null);
+          setSubdomainError(null);
         }}
         title="Create ENS Subdomain"
         size="md"
@@ -617,15 +739,33 @@ export function ContainerDetailPanel({
             <p className="text-sm text-text-secondary mb-4">
               Create a subdomain for this container to make it easily accessible via ENS.
             </p>
-            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Globe className="text-primary" size={16} />
-                <span className="text-xs font-accent text-primary uppercase">Preview</span>
+
+            {/* Warning if master wallet has no ENS name */}
+            {!masterWallet?.ensName && (
+              <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg mb-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="text-warning flex-shrink-0 mt-0.5" size={16} />
+                  <div className="text-xs text-text-secondary space-y-1">
+                    <p className="font-semibold text-warning">Master Wallet Has No ENS Name</p>
+                    <p>Your master wallet ({masterWallet?.address.slice(0, 6)}...{masterWallet?.address.slice(-4)}) does not have an ENS name.</p>
+                    <p>Please register an ENS name for your master wallet first to create subdomains.</p>
+                  </div>
+                </div>
               </div>
-              <div className="font-mono text-sm text-text-primary">
-                {subdomainName || 'your-name'}.openclawcrypto.eth
+            )}
+
+            {/* Preview - only show if master wallet has ENS */}
+            {masterWallet?.ensName && (
+              <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg mb-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe className="text-primary" size={16} />
+                  <span className="text-xs font-accent text-primary uppercase">Preview</span>
+                </div>
+                <div className="font-mono text-sm text-text-primary">
+                  {subdomainName || 'your-name'}.{masterWallet.ensName}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div>
@@ -652,27 +792,89 @@ export function ContainerDetailPanel({
             </div>
           </div>
 
+          {/* Success Status */}
+          {subdomainTxHash && (
+            <div className="p-3 bg-success/10 border border-success/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="text-success flex-shrink-0 mt-0.5" size={16} />
+                <div className="text-xs text-text-secondary space-y-1 flex-1">
+                  <p className="font-semibold text-success">Subdomain Created!</p>
+                  <p className="text-text-primary">Your subdomain has been registered.</p>
+                  <p className="text-text-muted">Transaction Hash:</p>
+                  <div className="flex items-center gap-2 p-2 bg-bg-surface/50 rounded border border-success/20">
+                    <code className="font-mono text-xs text-text-primary break-all flex-1">
+                      {subdomainTxHash}
+                    </code>
+                    <IconButton
+                      onClick={() => {
+                        navigator.clipboard.writeText(subdomainTxHash);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Copy transaction hash"
+                      className="flex-shrink-0"
+                    >
+                      <Copy size={12} />
+                    </IconButton>
+                  </div>
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${subdomainTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-light underline inline-flex items-center gap-1"
+                  >
+                    View on Etherscan
+                    <Globe size={12} />
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Status */}
+          {subdomainError && (
+            <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="text-danger flex-shrink-0 mt-0.5" size={16} />
+                <div className="text-xs text-text-secondary space-y-1">
+                  <p className="font-semibold text-danger">Creation Failed</p>
+                  <p className="text-text-primary">{subdomainError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3 mt-6">
             <Button
               onClick={handleCreateSubdomain}
               variant="primary"
               size="lg"
               fullWidth
-              disabled={!subdomainName || subdomainName.length < 3}
-              leftIcon={<Globe size={18} />}
+              disabled={
+                !masterWallet?.ensName ||
+                !subdomainName ||
+                subdomainName.length < 3 ||
+                creatingSubdomain ||
+                !!subdomainTxHash
+              }
+              leftIcon={
+                creatingSubdomain ? <Loader2 size={18} className="animate-spin" /> : <Globe size={18} />
+              }
               className="shadow-glow-md hover:shadow-glow-lg font-bold"
             >
-              Create Subdomain
+              {creatingSubdomain ? 'Creating...' : subdomainTxHash ? 'Created!' : 'Create Subdomain'}
             </Button>
             <Button
               onClick={() => {
                 setSubdomainModalOpen(false);
                 setSubdomainName('');
+                setSubdomainTxHash(null);
+                setSubdomainError(null);
               }}
               variant="secondary"
               size="lg"
             >
-              Cancel
+              {subdomainTxHash ? 'Close' : 'Cancel'}
             </Button>
           </div>
         </div>

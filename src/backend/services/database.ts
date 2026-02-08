@@ -17,12 +17,25 @@ export interface Transaction {
   error?: string;
 }
 
+export interface ENSSubdomain {
+  id: string;
+  botId: string;
+  subdomain: string; // e.g., "my-trading"
+  fullDomain: string; // e.g., "my-trading.openclawcrypto.eth"
+  address: string; // Container wallet address
+  transactionHash: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  timestamp: number;
+  error?: string;
+}
+
 interface Database {
   bots: BotConfig[];
   transactions: Transaction[];
+  ensSubdomains: ENSSubdomain[];
 }
 
-const defaultData: Database = { bots: [], transactions: [] };
+const defaultData: Database = { bots: [], transactions: [], ensSubdomains: [] };
 
 let db: Awaited<ReturnType<typeof JSONFilePreset<Database>>> | null = null;
 
@@ -35,6 +48,12 @@ export async function initDatabase() {
   // Migration: Add transactions array if it doesn't exist
   if (!db.data.transactions) {
     db.data.transactions = [];
+    await db.write();
+  }
+
+  // Migration: Add ensSubdomains array if it doesn't exist
+  if (!db.data.ensSubdomains) {
+    db.data.ensSubdomains = [];
     await db.write();
   }
 
@@ -115,4 +134,32 @@ export async function getBotTransactions(botId: string): Promise<Transaction[]> 
 export async function getAllTransactions(): Promise<Transaction[]> {
   const database = getDatabase();
   return database.data.transactions.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export async function saveENSSubdomain(subdomain: ENSSubdomain): Promise<void> {
+  const database = getDatabase();
+  const index = database.data.ensSubdomains.findIndex(s => s.id === subdomain.id);
+
+  if (index >= 0) {
+    database.data.ensSubdomains[index] = subdomain;
+  } else {
+    database.data.ensSubdomains.push(subdomain);
+  }
+
+  await database.write();
+}
+
+export async function getENSSubdomain(id: string): Promise<ENSSubdomain | undefined> {
+  const database = getDatabase();
+  return database.data.ensSubdomains.find(s => s.id === id);
+}
+
+export async function getENSSubdomainByBotId(botId: string): Promise<ENSSubdomain | undefined> {
+  const database = getDatabase();
+  return database.data.ensSubdomains.find(s => s.botId === botId && s.status === 'confirmed');
+}
+
+export async function getAllENSSubdomains(): Promise<ENSSubdomain[]> {
+  const database = getDatabase();
+  return database.data.ensSubdomains.sort((a, b) => b.timestamp - a.timestamp);
 }
