@@ -1,8 +1,8 @@
 /**
  * Format bytes to human-readable string
  */
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+export function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes || bytes === 0) return '0 B';
 
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -14,14 +14,18 @@ export function formatBytes(bytes: number): string {
 /**
  * Format percentage to 2 decimal places
  */
-export function formatPercentage(value: number): string {
+export function formatPercentage(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '0.00%';
+  }
   return `${value.toFixed(2)}%`;
 }
 
 /**
  * Format uptime in seconds to human-readable string
  */
-export function formatUptime(seconds: number): string {
+export function formatUptime(seconds: number | null | undefined): string {
+  if (!seconds || seconds < 0) return '0s';
   if (seconds < 60) return `${Math.floor(seconds)}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
@@ -31,7 +35,9 @@ export function formatUptime(seconds: number): string {
 /**
  * Format timestamp to relative time (e.g., "2 hours ago")
  */
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(timestamp: number | null | undefined): string {
+  if (!timestamp) return 'unknown';
+
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
   if (seconds < 60) return 'just now';
@@ -44,6 +50,7 @@ export function formatRelativeTime(timestamp: number): string {
 /**
  * Format timestamp to date and time string
  */
-export function formatDateTime(timestamp: number): string {
+export function formatDateTime(timestamp: number | null | undefined): string {
+  if (!timestamp) return 'N/A';
   return new Date(timestamp).toLocaleString();
 }

@@ -1,7 +1,6 @@
 import { HTMLAttributes, ReactNode, forwardRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { Button } from './Button';
 
 export interface ModalProps extends HTMLAttributes<HTMLDivElement> {
   isOpen: boolean;

@@ -63,7 +63,12 @@ export function useWebSocket(url: string) {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        // Suppress error logging during reconnection attempts
+        if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+          console.log('WebSocket connection failed, will retry...');
+        } else {
+          console.error('WebSocket error:', error);
+        }
       };
 
       wsRef.current = ws;

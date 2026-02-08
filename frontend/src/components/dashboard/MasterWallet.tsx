@@ -68,9 +68,12 @@ export function MasterWallet() {
   if (!wallet) return null;
 
   // Get total balance in ETH (assuming all networks use 18 decimals)
-  const totalBalance = Object.values(wallet.balances).reduce((sum, { formatted }) => {
-    return sum + parseFloat(formatted);
-  }, 0);
+  const totalBalance = wallet.balances
+    ? Object.values(wallet.balances).reduce((sum, { formatted }) => {
+        const value = parseFloat(formatted);
+        return sum + (isNaN(value) ? 0 : value);
+      }, 0)
+    : 0;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -82,7 +85,7 @@ export function MasterWallet() {
         <Wallet className="text-primary" size={16} />
         <div className="flex items-baseline gap-1">
           <span className="text-sm font-mono font-bold text-primary">
-            {totalBalance.toFixed(4)}
+            {(totalBalance || 0).toFixed(4)}
           </span>
           <span className="text-xs text-text-muted">ETH</span>
         </div>
@@ -164,30 +167,33 @@ export function MasterWallet() {
             <span className="text-xs text-text-muted uppercase tracking-wider">Total Balance</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-mono font-bold text-primary">
-                {totalBalance.toFixed(4)}
+                {(totalBalance || 0).toFixed(4)}
               </span>
               <span className="text-sm text-text-muted">ETH</span>
             </div>
           </div>
 
           {/* Network Breakdown */}
-          {Object.keys(wallet.balances).length > 0 && (
+          {wallet.balances && Object.keys(wallet.balances).length > 0 && (
             <div>
               <span className="text-xs text-text-muted uppercase tracking-wider">Networks</span>
               <div className="space-y-2 mt-2">
-                {Object.entries(wallet.balances).map(([network, { formatted }]) => (
-                  <div
-                    key={network}
-                    className="flex items-center justify-between p-2 bg-bg-surface/30 rounded"
-                  >
-                    <span className="text-xs font-accent text-text-secondary uppercase">
-                      {network.replace('_', ' ')}
-                    </span>
-                    <span className="text-sm font-mono font-semibold text-text-primary">
-                      {parseFloat(formatted).toFixed(4)} ETH
-                    </span>
-                  </div>
-                ))}
+                {Object.entries(wallet.balances).map(([network, { formatted }]) => {
+                  const balance = parseFloat(formatted);
+                  return (
+                    <div
+                      key={network}
+                      className="flex items-center justify-between p-2 bg-bg-surface/30 rounded"
+                    >
+                      <span className="text-xs font-accent text-text-secondary uppercase">
+                        {network.replace('_', ' ')}
+                      </span>
+                      <span className="text-sm font-mono font-semibold text-text-primary">
+                        {(isNaN(balance) ? 0 : balance).toFixed(4)} ETH
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

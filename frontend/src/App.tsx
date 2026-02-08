@@ -9,11 +9,14 @@ import { DashboardLayout } from './components/dashboard/DashboardLayout';
 import { Header } from './components/dashboard/Header';
 import { EmptyState } from './components/dashboard/EmptyState';
 import { Skeleton } from './components/ui/Skeleton';
+import { ImagePullProgress } from './components/ui/ImagePullProgress';
 
 export default function App() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [creatingBot, setCreatingBot] = useState(false);
+  const [creationStatus, setCreationStatus] = useState<'pulling' | 'creating' | 'success' | 'error'>('pulling');
   const [logsModal, setLogsModal] = useState<{ open: boolean; botId: string; botName: string }>({
     open: false,
     botId: '',
@@ -60,11 +63,35 @@ export default function App() {
 
   const handleCreateBot = async (data: { name: string; image: string; env: Record<string, string> }) => {
     try {
+      // Close modal and show loading progress
+      setCreateModalOpen(false);
+      setCreatingBot(true);
+      setCreationStatus('pulling');
+
+      // Simulate image pulling phase (first 60% of time)
+      const pullTimer = setTimeout(() => {
+        setCreationStatus('creating');
+      }, 3000);
+
+      // Create the bot
       await api.createBot(data);
+      clearTimeout(pullTimer);
+
+      // Show success state
+      setCreationStatus('success');
+
+      // Reload bots and hide progress after a short delay
       await loadBots();
+      setTimeout(() => {
+        setCreatingBot(false);
+      }, 1500);
     } catch (error) {
       console.error('Failed to create bot:', error);
-      alert('Failed to create bot');
+      setCreationStatus('error');
+      setTimeout(() => {
+        setCreatingBot(false);
+        alert('Failed to create bot');
+      }, 2000);
     }
   };
 
@@ -185,6 +212,11 @@ export default function App() {
         botId={logsModal.botId}
         botName={logsModal.botName}
         onClose={() => setLogsModal({ open: false, botId: '', botName: '' })}
+      />
+
+      <ImagePullProgress
+        isVisible={creatingBot}
+        status={creationStatus}
       />
     </DashboardLayout>
   );
