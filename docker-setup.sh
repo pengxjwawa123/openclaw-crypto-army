@@ -60,8 +60,8 @@ echo ""
 # Pull OpenClaw image
 echo "📥 Pulling official OpenClaw image from GitHub Container Registry..."
 echo "   Version: 2026.2.6-3"
-if docker pull ghcr.io/openclaw/openclaw:2026.2.6-3; then
-    echo "✅ OpenClaw image (version 2026.2.6-3) pulled successfully"
+if docker pull ghcr.io/openclaw/openclaw:2026.2.24; then
+    echo "✅ OpenClaw image (version 2026.2.24) pulled successfully"
 else
     echo "❌ Failed to pull OpenClaw image"
     echo "   Make sure you have access to ghcr.io/openclaw/openclaw:2026.2.6-3"
@@ -109,7 +109,7 @@ echo "  2. Click 'Create Bot' to create a new trading bot"
 echo "  3. Each bot will automatically get a unique wallet/private key"
 echo ""
 echo "🔑 Bot Configuration:"
-echo "  - Each bot uses the 'ghcr.io/openclaw/openclaw:2026.2.6-3' image"
+echo "  - Each bot uses the 'ghcr.io/openclaw/openclaw:2026.2.24' image"
 echo "  - Private keys are auto-generated from your MNEMONIC"
 echo "  - Wallets are hierarchically deterministic (HD)"
 echo ""
