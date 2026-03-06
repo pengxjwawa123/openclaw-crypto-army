@@ -59,9 +59,9 @@ echo ""
 
 # Pull OpenClaw image
 echo "📥 Pulling official OpenClaw image from GitHub Container Registry..."
-echo "   Version: 2026.2.6-3"
-if docker pull ghcr.io/openclaw/openclaw:2026.2.6-3; then
-    echo "✅ OpenClaw image (version 2026.2.6-3) pulled successfully"
+echo "   Version: 2026.2.24"
+if docker pull ghcr.io/openclaw/openclaw:2026.2.24; then
+    echo "✅ OpenClaw image (version 2026.2.24) pulled successfully"
 else
     echo "❌ Failed to pull OpenClaw image"
     echo "   Make sure you have access to ghcr.io/openclaw/openclaw:2026.2.6-3"
